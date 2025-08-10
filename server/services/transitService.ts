@@ -760,12 +760,19 @@ export class TransitService {
     const origin = leg.Origin?.name || "";
     const destination = leg.Destination?.name || "";
     
-    // Route-based mapping for accuracy
+    // Route-based mapping for accuracy - prioritize faster routes
     if (origin.includes("Sundbyberg") || destination.includes("Sundbyberg")) {
       return "43"; // Line 43 serves Sundbyberg
     }
     if (origin.includes("Flemingsberg") || destination.includes("Flemingsberg")) {
       return "40"; // Line 40 serves Flemingsberg
+    }
+    if (origin.includes("Odenplan") || destination.includes("Odenplan")) {
+      // Odenplan is served by both lines - choose based on direction
+      if (origin.includes("Sundbyberg") || destination.includes("Flemingsberg")) {
+        return "40"; // Use line 40 for the optimal Sundbyberg→Odenplan→Flemingsberg route
+      }
+      return "43";
     }
     if (origin.includes("Märsta") || destination.includes("Märsta")) {
       return "42"; // Line 42 serves Märsta
