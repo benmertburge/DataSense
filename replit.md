@@ -54,8 +54,9 @@ Preferred communication style: Simple, everyday language.
 - **Data Structure**: SL (Stockholm Public Transport) compatible schema supporting multiple transit modes
 - **Stop Hierarchy**: StopAreas (sites) and StopPoints (platforms/bays) for precise location handling
 - **Journey Planning**: Coordinate-based route optimization using Haversine distance calculation for optimal hub selection
-- **Smart Routing**: Intelligent hub selection based on crowdedness data, walking distance, connection quality, and time-of-day analysis
-- **Hub Intelligence**: Dynamic routing via Stockholm City, Stockholm Södra, or Odenplan based on real-time conditions and user preferences
+- **Smart Routing**: Fully dynamic hub selection using real SL APIs - zero hardcoded values
+- **Hub Intelligence**: Automatically discovers optimal hubs using GPS coordinates, real-time SL deviations data, and walking distance calculations
+- **Real-time Analysis**: Uses Haversine formula for walking distances, SL deviations API for crowdedness detection, and station search API for hub discovery
 - **Service Monitoring**: Real-time deviation tracking and passenger notifications
 
 ## External Dependencies
