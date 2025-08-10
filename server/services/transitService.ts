@@ -162,11 +162,16 @@ export class TransitService {
     const firstTransitLeg = legs.find(leg => leg.kind === 'TRANSIT') as TransitLeg;
     const lastTransitLeg = [...legs].reverse().find(leg => leg.kind === 'TRANSIT') as TransitLeg;
     
+    const tripDeparture = firstTransitLeg?.plannedDeparture || new Date().toISOString();
+    const tripArrival = lastTransitLeg?.plannedArrival || new Date().toISOString();
+    
+    console.log(`PROOF: Trip times - Departure: ${tripDeparture}, Arrival: ${tripArrival}`);
+    
     return {
       id: `ResRobot_${Date.now()}_${index}`,
       legs,
-      plannedDeparture: firstTransitLeg?.plannedDeparture || new Date().toISOString(),
-      plannedArrival: lastTransitLeg?.plannedArrival || new Date().toISOString(),
+      plannedDeparture: tripDeparture,
+      plannedArrival: tripArrival,
       duration: this.parseDuration(resRobotTrip.duration || 'PT0H0M'),
       emissions: { co2: 0 }
     } as Itinerary;
@@ -356,6 +361,7 @@ export class TransitService {
       const dateTime = new Date(`${dateString}T${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}:00`);
       
       console.log(`DEBUG: ResRobot DateTime - Date: ${dateString}, Time: ${timeString} -> ISO: ${dateTime.toISOString()}`);
+      console.log(`PROOF: Converting "${dateString} ${timeString}" to "${dateTime.toISOString()}"`);
       return dateTime.toISOString();
     } catch (error) {
       console.error(`Failed to format ResRobot date/time "${dateString}" "${timeString}":`, error);
