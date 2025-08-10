@@ -89,19 +89,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       stockholmDateTime.setFullYear(year, month - 1, day); // month is 0-indexed
       stockholmDateTime.setHours(hour, minute, 0, 0);
       
-      console.log(`Journey search request: ${data.from} → ${data.to}`);
-      console.log(`Raw input: ${data.date}T${data.time}`);
-      console.log(`Stockholm time created: ${stockholmDateTime.toISOString()}`);
-      console.log(`Local Stockholm time will be: ${new Intl.DateTimeFormat('sv-SE', {
-        timeZone: 'Europe/Stockholm',
-        year: 'numeric',
-        month: '2-digit', 
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      }).format(stockholmDateTime)}`);
-      console.log(`Search type: ${data.leaveAt ? 'departure' : 'arrival'}`);
+      console.log(`ROUTES DEBUG: Raw user input: ${data.date} ${data.time}`);
+      console.log(`ROUTES DEBUG: Created dateTime object: ${stockholmDateTime.toString()}`);
+      console.log(`ROUTES DEBUG: Hours/Minutes: ${stockholmDateTime.getHours()}:${stockholmDateTime.getMinutes()}`);
+      console.log(`ROUTES DEBUG: Search type: ${data.leaveAt ? 'departure' : 'arrival'}`);
       
       // Use SL Journey Planner 2 - native Stockholm transport routing
       const routes = await transitService.searchRoutesWithSL(

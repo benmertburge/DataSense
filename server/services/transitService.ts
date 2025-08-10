@@ -883,8 +883,9 @@ export class TransitService {
           const slDate = `${dateTime.getFullYear()}-${String(dateTime.getMonth() + 1).padStart(2, '0')}-${String(dateTime.getDate()).padStart(2, '0')}`;
           const slTime = `${String(dateTime.getHours()).padStart(2, '0')}:${String(dateTime.getMinutes()).padStart(2, '0')}`;
           
-          console.log(`DIRECT TIME: User wants ${slDate} ${slTime} Stockholm time`);
-          console.log(`NO CONVERSION: Sending exactly ${slDate} ${slTime} to SL API`);
+          console.log(`TIMEZONE DEBUG: Input dateTime object: ${dateTime.toString()}`);
+          console.log(`TIMEZONE DEBUG: getHours(): ${dateTime.getHours()}, getMinutes(): ${dateTime.getMinutes()}`);
+          console.log(`TIMEZONE DEBUG: Formatted for SL API: ${slDate} ${slTime}`);
           
           queryParams.append('date', slDate);
           queryParams.append('time', slTime);
@@ -1076,10 +1077,8 @@ export class TransitService {
     const parts = fullName.split(', ');
     let stationName = parts.length >= 2 ? parts[1] : fullName;
     
-    // Fix specific confusing station names
-    if (stationName === 'Stockholm City' || stationName.includes('Stockholm')) {
-      return 'Stockholm Central Station';
-    }
+    // DON'T CHANGE REAL STATION NAMES - use what SL API actually provides
+    // Keep Stockholm City as Stockholm City, not made up names
     if (stationName === 'T-Centralen') {
       return 'T-Centralen (Metro Hub)';
     }
