@@ -1788,17 +1788,64 @@ export class TransitService {
   }
 
   // Get real-time departures using Trafiklab Timetables API
+  // Convert SL area ID to Trafiklab area ID  
+  private convertSLToTrafilabAreaId(slAreaId: string): string {
+    // Map known SL station IDs to their Trafiklab equivalents
+    const idMap: { [key: string]: string } = {
+      // Stockholm Central/City stations
+      '9021001005310000': '740000001', // Stockholm Central
+      '9005': '740000001', // Stockholm Central fallback
+      '9006': '740000001', // Stockholm City
+      
+      // Major stations
+      '9021001006031000': '740000631', // Sundbyberg
+      '9021001005171000': '740000517', // Flemingsberg  
+      '9001': '740000765', // Odenplan
+      '9004': '740000001', // T-Centralen
+      
+      // Common pendeltåg stations
+      '9180': '740000517', // Flemingsberg
+      '9192': '740000631', // Sundbyberg
+    };
+    
+    // First check direct mapping
+    if (idMap[slAreaId]) {
+      return idMap[slAreaId];
+    }
+    
+    // If SL format, try conversion
+    if (slAreaId.startsWith('9021001')) {
+      const numericPart = slAreaId.replace('9021001', '').replace(/000$/, '');
+      const converted = `74${numericPart.padStart(7, '0').substring(0, 7)}`;
+      console.log(`Converting SL ID ${slAreaId} to Trafiklab ID ${converted}`);
+      return converted;
+    }
+    
+    // Return as-is if already correct format or unknown
+    return slAreaId;
+  }
+
   async getDepartures(areaId: string, dateTime?: Date): Promise<Departure[]> {
     try {
-      // Use Trafiklab Realtime Timetables API for real departure data
-      const timeParam = dateTime ? this.formatTrafilabRealtimeTime(dateTime) : '';
-      const url = `${this.SL_REALTIME_API}/departures/${areaId}${timeParam}?key=4c35826c6a514714ba49303d3ff08114`;
+      // Convert SL area ID to Trafiklab format
+      const trafilabAreaId = this.convertSLToTrafilabAreaId(areaId);
+      console.log(`Using Trafiklab area ID: ${trafilabAreaId} (from SL ID: ${areaId})`);
+      
+      // Use correct Trafiklab Realtime Timetables API endpoint
+      let url = `${this.TRAFIKLAB_REALTIME_API}/departures/${trafilabAreaId}`;
+      
+      if (dateTime) {
+        const timeParam = this.formatTrafilabRealtimeTime(dateTime);
+        url += `/${timeParam}`;
+      }
+      
+      url += `?key=${process.env.RESROBOT_API_KEY}`;
       
       console.log(`Fetching real departures from: ${url}`);
       
       const response = await fetch(url);
       if (!response.ok) {
-        console.log(`Trafiklab Timetables API failed: ${response.status}`);
+        console.log(`Trafiklab Timetables API failed: ${response.status} for area ${trafilabAreaId}`);
         return this.getFallbackDepartures(areaId);
       }
       
