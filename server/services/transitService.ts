@@ -97,7 +97,7 @@ export class TransitService {
     console.log(`ResRobot returned ${data.Trip.length} real trips`);
     
     // Filter trips based on user's date/time criteria
-    const userDateTime = new Date(`${date}T${time}:00`);
+    const userDateTime = new Date(`${searchDate}T${searchTime}:00`);
     const filteredTrips = data.Trip.filter((trip: any) => {
       if (!trip.LegList?.Leg) return false;
       
@@ -122,7 +122,7 @@ export class TransitService {
       }
     });
     
-    console.log(`FILTERED: ${filteredTrips.length} trips match user criteria (${leaveAt ? 'leave at' : 'arrive by'} ${date} ${time})`);
+    console.log(`FILTERED: ${filteredTrips.length} trips match user criteria (${leaveAt ? 'leave at' : 'arrive by'} ${searchDate} ${searchTime})`);
     
     return filteredTrips.map((trip: any, index: number) => this.convertResRobotTripToItinerary(trip, index));
   }
