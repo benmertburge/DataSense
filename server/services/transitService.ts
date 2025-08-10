@@ -129,12 +129,14 @@ export class TransitService {
           from: {
             name: leg.Origin?.name || 'Unknown',
             coord: [parseFloat(leg.Origin?.lat || '0'), parseFloat(leg.Origin?.lon || '0')],
-            platform: leg.Origin?.track || undefined
+            platform: leg.Origin?.track || undefined,
+            stationId: leg.Origin?.id || undefined
           },
           to: {
             name: leg.Destination?.name || 'Unknown',
             coord: [parseFloat(leg.Destination?.lat || '0'), parseFloat(leg.Destination?.lon || '0')],
-            platform: leg.Destination?.track || undefined
+            platform: leg.Destination?.track || undefined,
+            stationId: leg.Destination?.id || undefined
           },
           line: {
             id: `RR_${leg.Product?.num || leg.Product?.name || 'unknown'}`,
@@ -180,7 +182,7 @@ export class TransitService {
             },
             journeyId: leg.line.id,
             from: {
-              areaId: 'unknown',
+              areaId: leg.from.stationId || 'unknown',
               name: leg.from.name,
               platform: leg.from.platform
             },
@@ -252,66 +254,117 @@ export class TransitService {
   private async enhanceTripsWithRealTimeData(trips: Itinerary[]): Promise<Itinerary[]> {
     console.log(`ENHANCING: ${trips.length} trips with real-time data from Trafiklab`);
     
-    // For each transit leg, try to get real-time departure data
+    const enhancedTrips = [];
+    
     for (const trip of trips) {
+      const enhancedLegs = [];
+      
       for (const leg of trip.legs) {
-        if (leg.type === 'transit') {
-          const transitLeg = leg as TransitLeg;
+        if (leg.kind === 'TRANSIT') {
+          // Get real-time departures for this leg's origin station
           try {
-            // Try to get real-time data for this departure
-            const realTimeData = await this.getRealTimeDeparture(
-              transitLeg.from.name,
-              transitLeg.line.number,
-              new Date(transitLeg.departureTime)
-            );
-            
-            if (realTimeData) {
-              console.log(`REAL-TIME ENHANCED: ${transitLeg.line.number} from ${transitLeg.from.name}`);
-              transitLeg.departureTime = realTimeData.expectedTime || realTimeData.plannedTime;
-              transitLeg.isRealTime = true;
+            // Use stored station ID from ResRobot data
+            const stationId = leg.from.areaId !== 'unknown' ? leg.from.areaId : await this.findStationIdByName(leg.from.name);
+            if (stationId) {
+              const realTimeData = await this.getRealTimeDeparturesFromTrafiklab(stationId, leg.plannedDeparture);
+              
+              // Find matching departure by line number and planned time
+              const matchingDeparture = this.findMatchingDeparture(realTimeData, leg.line.number, leg.plannedDeparture);
+              
+              if (matchingDeparture) {
+                enhancedLegs.push({
+                  ...leg,
+                  expectedDeparture: matchingDeparture.expectedTime,
+                  expectedArrival: this.calculateExpectedArrival(leg.plannedArrival, matchingDeparture.delay || 0)
+                });
+              } else {
+                enhancedLegs.push(leg);
+              }
+            } else {
+              enhancedLegs.push(leg);
             }
           } catch (error) {
-            console.log(`Real-time enhancement failed for ${transitLeg.line.number}: ${error}`);
-            // Keep original ResRobot times
+            console.error(`Failed to get real-time data for leg: ${error}`);
+            enhancedLegs.push(leg);
           }
+        } else {
+          enhancedLegs.push(leg);
         }
       }
+      
+      // Calculate overall trip delay
+      const firstTransitLeg = enhancedLegs.find(leg => leg.kind === 'TRANSIT') as any;
+      const lastTransitLeg = enhancedLegs.reverse().find(leg => leg.kind === 'TRANSIT') as any;
+      enhancedLegs.reverse();
+      
+      const delayMinutes = firstTransitLeg?.expectedDeparture 
+        ? Math.round((new Date(firstTransitLeg.expectedDeparture).getTime() - new Date(firstTransitLeg.plannedDeparture).getTime()) / 60000)
+        : 0;
+      
+      enhancedTrips.push({
+        ...trip,
+        legs: enhancedLegs,
+        expectedDeparture: firstTransitLeg?.expectedDeparture,
+        expectedArrival: lastTransitLeg?.expectedArrival,
+        delayMinutes: Math.max(0, delayMinutes)
+      });
     }
     
-    return trips;
+    return enhancedTrips;
   }
 
-  private async getRealTimeDeparture(stationName: string, lineNumber: string, scheduledTime: Date) {
-    try {
-      // First, find station ID by name
-      const stationId = await this.findStationIdByName(stationName);
-      if (!stationId) return null;
-      
-      // Get real-time departures
-      const departures = await this.getRealDepartures(stationId, scheduledTime);
-      
-      // Find matching departure by line number and time
-      const matchingDeparture = departures.find(dep => 
-        dep.line.number === lineNumber &&
-        Math.abs(new Date(dep.plannedTime).getTime() - scheduledTime.getTime()) < 15 * 60 * 1000 // Within 15 minutes
-      );
-      
-      return matchingDeparture;
-    } catch (error) {
-      console.log(`Real-time lookup failed: ${error}`);
-      return null;
+  private async getRealTimeDeparturesFromTrafiklab(stationId: string, plannedTime: string): Promise<any[]> {
+    const apiKey = process.env.TRAFIKLAB_API_KEY?.trim();
+    if (!apiKey) {
+      throw new Error("TRAFIKLAB_API_KEY is required");
     }
+
+    // Format time for Trafiklab API (YYYY-MM-DDTHH:mm)
+    const timeParam = new Date(plannedTime).toISOString().slice(0, 16);
+    
+    const url = `https://realtime-api.trafiklab.se/v1/departures/${stationId}/${timeParam}?key=${apiKey}`;
+    console.log(`Fetching real-time departures: ${url.replace(apiKey, 'API_KEY_HIDDEN')}`);
+    
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Trafiklab API failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.departures || [];
+  }
+
+  private findMatchingDeparture(realTimeData: any[], lineNumber: string, plannedTime: string): any | null {
+    const plannedDate = new Date(plannedTime);
+    const timeWindow = 10 * 60 * 1000; // 10 minutes tolerance
+    
+    return realTimeData.find(departure => {
+      const departureTime = new Date(departure.time || departure.planned_departure_time);
+      const timeDiff = Math.abs(departureTime.getTime() - plannedDate.getTime());
+      
+      return (departure.line_number === lineNumber || departure.line === lineNumber) && timeDiff <= timeWindow;
+    }) || null;
+  }
+
+  private calculateExpectedArrival(plannedArrival: string, delayMinutes: number): string {
+    const arrivalTime = new Date(plannedArrival);
+    arrivalTime.setMinutes(arrivalTime.getMinutes() + delayMinutes);
+    return arrivalTime.toISOString();
   }
 
   private async findStationIdByName(stationName: string): Promise<string | null> {
     // Try to map common Stockholm stations to Trafiklab IDs
     const stationMap: { [key: string]: string } = {
       'Stockholm Central': '740000001',
-      'Stockholm Centralstation': '740000001',
-      'T-Centralen': '740000001'
+      'Stockholm Centralstation': '740000001', 
+      'T-Centralen': '740000001',
+      'Sundbyberg station': '740000773',
+      'Sundbyberg': '740000773',
+      'Flemingsberg station': '740000031',
+      'Flemingsberg': '740000031'
     };
     
-    const normalizedName = stationName.replace(/,.*$/, '').trim(); // Remove city suffix
+    const normalizedName = stationName.replace(/\s*\([^)]*\)/, '').replace(/,.*$/, '').trim(); // Remove parentheses and city suffix
     return stationMap[normalizedName] || null;
   }
 
