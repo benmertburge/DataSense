@@ -39,7 +39,7 @@ export class TransitService {
     dateTime?: Date
   ): Promise<Itinerary[]> {
     
-    const apiKey = process.env.RESROBOT_API_KEY;
+    const apiKey = process.env.RESROBOT_API_KEY?.trim();
     if (!apiKey) {
       throw new Error("RESROBOT_API_KEY environment variable is required for real data");
     }
@@ -352,7 +352,7 @@ export class TransitService {
     
     try {
       // Use ResRobot location.name API - THIS WORKS WITH YOUR KEY!
-      const apiKey = process.env.RESROBOT_API_KEY;
+      const apiKey = process.env.RESROBOT_API_KEY?.trim();
       if (!apiKey) {
         throw new Error("RESROBOT_API_KEY required");
       }
@@ -431,7 +431,7 @@ export class TransitService {
   }
 
   private async DEPRECATED_searchStationsUsingTripAPI(query: string): Promise<StopArea[]> {
-    const apiKey = process.env.RESROBOT_API_KEY;
+    const apiKey = process.env.RESROBOT_API_KEY?.trim();
     if (!apiKey) {
       throw new Error("RESROBOT_API_KEY required for real station data");
     }
