@@ -66,17 +66,12 @@ export default function AlternativeRoutes() {
   };
 
   const getModeDisplay = (line: any) => {
-    const modeColors = {
-      METRO: 'bg-blue-600',
-      TRAIN: 'bg-green-600',
-      BUS: 'bg-orange-500',
-      TRAM: 'bg-purple-600',
-    };
-    
-    const colorClass = modeColors[line.mode as keyof typeof modeColors] || 'bg-gray-500';
-    
+    // Use the color directly from the backend API (Swedish transport colors)
     return (
-      <span className={`${colorClass} text-white px-2 py-1 rounded text-xs font-bold`}>
+      <span 
+        className="text-white px-2 py-1 rounded text-xs font-bold"
+        style={{ backgroundColor: line.color || '#666666' }}
+      >
         {line.number}
       </span>
     );
