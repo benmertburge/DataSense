@@ -27,19 +27,20 @@ export default function AlternativeRoutes() {
       // Handle both ISO format and simple time format
       let date: Date;
       if (timeString.includes('T')) {
-        // ISO format from Trafiklab: "2025-08-11T08:32:00"
+        // ISO format: "2025-08-11T08:32:00"
         date = new Date(timeString);
       } else if (timeString.includes(':')) {
         // Simple time format: "08:32:00"
-        const today = new Date();
         const [hours, minutes] = timeString.split(':');
-        today.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-        date = today;
+        date = new Date();
+        date.setHours(parseInt(hours), parseInt(minutes), 0, 0);
       } else {
         date = new Date(timeString);
       }
       
       if (isNaN(date.getTime())) return 'Invalid';
+      
+      // Return time in Swedish format HH:mm
       return date.toLocaleTimeString('sv-SE', { 
         hour: '2-digit', 
         minute: '2-digit',

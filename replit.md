@@ -53,11 +53,12 @@ Preferred communication style: Simple, everyday language.
 ### Transit Data Management
 - **Data Structure**: SL (Stockholm Public Transport) compatible schema supporting multiple transit modes
 - **Stop Hierarchy**: StopAreas (sites) and StopPoints (platforms/bays) for precise location handling
-- **Journey Planning**: Coordinate-based route optimization using Haversine distance calculation for optimal hub selection
-- **Smart Routing**: Fully dynamic hub selection using real SL APIs - zero hardcoded values
-- **Hub Intelligence**: Automatically discovers optimal hubs using GPS coordinates, real-time SL deviations data, and walking distance calculations
-- **Real-time Analysis**: Uses Haversine formula for walking distances, SL deviations API for crowdedness detection, and station search API for hub discovery
-- **Service Monitoring**: Real-time deviation tracking and passenger notifications
+- **Journey Planning**: ResRobot v2.1 API for route structure and trip planning with station ID-based queries
+- **Real-time Data**: Trafiklab Realtime API for live departure times and delay information
+- **Smart Routing**: Fully dynamic station selection using real Swedish transport APIs - zero hardcoded values
+- **Data Integration**: ResRobot provides journey structure, Trafiklab provides real-time departure times
+- **Authentication**: Working API keys for ResRobot (599505c8-7155-4603-b352-4d31a4d2537b) and Trafiklab services
+- **Service Monitoring**: Real-time deviation tracking and passenger notifications using authentic SL data
 
 ## External Dependencies
 
@@ -67,9 +68,10 @@ Preferred communication style: Simple, everyday language.
 - **WebSocket**: Native Node.js WebSocket implementation for real-time features
 
 ### Transit Integration
-- **SL Journey Planner 2 API**: Native Stockholm Public Transport routing with multi-strategy searches
-- **Real-time Data**: Live SL transit data including delays and disruptions
-- **Multi-route Strategy**: Attempts direct, via-Odenplan, and least-interchange routing options
+- **ResRobot Route Planner v2.1**: Official Swedish transport API for journey planning across all operators
+- **Trafiklab Realtime API**: Live departure data with delay tracking and cancellation notifications
+- **Real-time Data**: Authentic Swedish transport schedules with live updates from SL and national operators
+- **Station Management**: Dynamic station lookup with proper numeric ID validation for API compatibility
 - **Compensation Rules**: Swedish transport compensation regulations (förseningsersättning)
 
 ### UI and Design

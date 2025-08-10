@@ -1,0 +1,60 @@
+Response data fields
+Name	Data type	Description
+TripList	Trip[]	Root element, contains the results as well as some meta-data.
+TripList.scrF	String	Use this value as context in a new query to get later results. Only present if there are more results within the next 24 hours.
+TripList.scrB	String	Use this value as context in a new query to get earlier results. Only present if there are more results within the previous 24 hours.
+Trip.duration	ISO8601 duration	Total travel time in ISO8601 format
+Example: PT9H32M
+Servicedays	Object	Information about the days on which day this trip is executed
+Servicedays.planningPeriodBegin	YYYY-MM-DD	Start of the actual timetable period, moves forward weekly
+Servicedays.planningPeriodEnd	YYYY-MM-DD	End of the actual timetable period, changes about 4 times every year
+Servicedays.sDaysB	String	Binary code describing if there is traffic on each day in the timetable period. The bits are respresented in a hexadecimal string
+Example: sDaysB=“FFFFE7FFFFFF”
+Might end in a long series of zeroes in case there is no information for the given trip near the end of the timetable period.
+Servicedays.sDaysI	String	Automatic attempt to describe days on which this trip isn’t executed, in the chosen language
+E.g. utom 19. jun; och 18. jun. Not included if this trip is executed daily.
+Servicedays.sDaysR	String	Automatic attempt to describe days on which this trip is executed, in the chosen language
+E.g. Every day, Not every day, On fridays
+LegList	Leg[]	List of Legs
+Leg	Object	Part of the journey, for example travelling with 1 vehicle, walking to or from a stop, or making a transfer.
+For transfers or walks, only duration and distance are available.
+Leg.category	String	Category type, possible values are described in common data types
+Leg.number	Integer	See product.num, described in common data types
+Leg.name	String	See product.name, described in common data types
+Leg.direction	String	Name of the last stop on the vehicle’s trip
+Leg.type	String	JNY for public transport. TRSF for transfers where the traveller has to walk between stations or where the traveller has to wait for more than 15 minutes. WALK for walks to the first stop and from the last stop.
+Leg.dist	Integer	Distance of this leg in meter. Relevant när type=WALK eller type=BIKE.
+Leg.Origin	Origin	Information about the departure stop
+Leg.Destination	Destination	Information about the destination stop
+Leg.JourneyStatus	String	Information about the vehicle journey status, Planned, Replacement, Additional or Special.
+Leg.JourneyDetailRef	String	Contains a reference to this specific vehicle journey. Only when type = JNY
+Leg.Notes	Note[]	A list of notes for a leg
+Leg.Product	Product[]	See common data types
+Leg.Stops	Stop[]	The intermediate stops that this vehicle passes on during this leg, if passlist = 1.
+Origin.name	String	Name of the departure stop
+Origin.type	String	ST for stop.
+Origin.date	Date (YYYY-MM-DD)	Departure date in in YYYY-MM-DD format, e.g. 2021-12-31.
+Origin.time	Time (HH:MM)	Departure time in HH:MM format, e.g. 19:06.
+Origin.lat, Origin.lon	String	Latitude and Longitude (WGS84, decimal degree) of the departure stop, e.g. 59.293611 and 18.083056
+Origin.id	String	Internal stop id of the departure stop, do not use
+Origin.extId	String	Id of the departure stop
+Destination.name	String	Name of the arrival stop
+Destination.type	String	ST for stop.
+Destination.date	Date (YYYY-MM-DD)	Arrival date in in YYYY-MM-DD format, e.g. 2021-12-31.
+Destination.time	Time (HH:MM)	Arrival time in HH:MM format, e.g. 19:06.
+Destination.lat, Destination.lon	String	Latitude and Longitude (WGS84, decimal degree) of the destination stop, e.g. 59.293611 and 18.083056
+Destination.id	String	Internal stop id of the destination stop, do not use
+Destination.extId	String	Id of the destination stop
+Note.value	String	Text note containing additional information for (a part of) this leg
+Note.routeIdxFrom	Integer	Index of the stop at the start of the stretch to which this note applies
+Note.routeIdxTo	Integer	Index of the stop at the end of the stretch to which this note applies
+Stop.name	String	Name of the departure stop
+Stop.type	String	ST for stop.
+Stop.depDate	Date (YYYY-MM-DD)	Departure date in in YYYY-MM-DD format, e.g. 2021-12-31.
+Stop.arrDate	Date (YYYY-MM-DD)	Arrival date in in YYYY-MM-DD format, e.g. 2021-12-31.
+Stop.depTime	Time (HH:MM)	Departure time in HH:MM format, e.g. 19:06.
+Stop.arrTime	Time (HH:MM)	Arrival time in HH:MM format, e.g. 19:06.
+Stop.lat, Stop.lon	String	Latitude and Longitude (WGS84, decimal degree) of the departure stop, e.g. 59.293611 and 18.083056
+Stop.id	String	Internal stop id of the stop, do not use
+Stop.extId	String	Id of the stop
+Stop.routeIdx	Integer	Zero-based index of the intermediate stop, for use with for example routeIdxFrom and routeIdsTo

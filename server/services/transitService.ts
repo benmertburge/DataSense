@@ -123,7 +123,22 @@ export class TransitService {
           distance: parseInt(leg.dist || '0')
         } as WalkLeg);
       } else {
-        // Transit leg
+        // Transit leg - debug Product structure
+        console.log('DEBUG: ResRobot Product data:', JSON.stringify(leg.Product, null, 2));
+        
+        // Try all possible line number fields from ResRobot
+        const lineNumber = leg.Product?.line || 
+                          leg.Product?.num || 
+                          leg.Product?.number || 
+                          leg.Product?.name || 
+                          leg.Product?.shortName ||
+                          leg.Product?.code ||
+                          leg.Product?.trainNumber ||
+                          leg.Product?.lineNumber ||
+                          'Unknown';
+        
+        console.log(`DEBUG: Extracted line number: "${lineNumber}" from Product fields`);
+        
         legs.push({
           type: 'transit',
           from: {
@@ -139,11 +154,11 @@ export class TransitService {
             stationId: leg.Destination?.id || undefined
           },
           line: {
-            id: `RR_${leg.Product?.num || leg.Product?.name || 'unknown'}`,
-            number: leg.Product?.num || leg.Product?.name || 'Unknown',
+            id: `RR_${lineNumber}`,
+            number: lineNumber,
             mode: this.mapResRobotProductToMode(leg.Product),
-            name: `${this.getTransportTypeText(leg.Product)} ${leg.Product?.num || leg.Product?.name || 'Unknown'}`,
-            operatorId: leg.Product?.operator || 'Unknown',
+            name: `${this.getTransportTypeText(leg.Product)} ${lineNumber}`,
+            operatorId: leg.Product?.operator || leg.Product?.operatorCode || 'SL',
             color: this.getLineColor(leg.Product)
           },
           departureTime: leg.Origin?.time || '08:30:00', // ResRobot scheduled time
@@ -172,6 +187,7 @@ export class TransitService {
         } else {
           return {
             kind: 'TRANSIT',
+            duration: leg.duration || 0,
             line: {
               id: leg.line.id,
               number: leg.line.number,
@@ -187,7 +203,7 @@ export class TransitService {
               platform: leg.from.platform
             },
             to: {
-              areaId: 'unknown', 
+              areaId: leg.to.stationId || 'unknown', 
               name: leg.to.name,
               platform: leg.to.platform
             },
