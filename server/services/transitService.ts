@@ -358,32 +358,27 @@ export class TransitService {
     return this.searchStopAreas(query);
   }
   
-  private getTransportTypes(products: number): string[] {
+  private getTransportTypesFromProductCodes(productAtStop: any[]): string[] {
+    if (!productAtStop || productAtStop.length === 0) return [];
+    
     const types: string[] = [];
     
-    // Special handling for common Stockholm station types
-    if (products === 254 || products === 252) {
-      // Major hub with all transport types
-      return ['Station hub'];
+    // Map ResRobot cls codes to transport types
+    for (const product of productAtStop) {
+      const cls = product.cls;
+      switch(cls) {
+        case "1": types.push("High-speed train"); break;
+        case "2": types.push("Express train"); break;
+        case "4": types.push("Regional train"); break;
+        case "8": types.push("Metro"); break;
+        case "16": types.push("Tram"); break;
+        case "32": types.push("Bus"); break;
+        case "64": types.push("Ferry"); break;
+        case "128": types.push("Taxi"); break;
+      }
     }
     
-    // Decode individual transport types
-    if (products & 2) types.push('Express train');
-    if (products & 4) types.push('Regional train');
-    if (products & 8) types.push('Local train');
-    if (products & 16) types.push('Metro');
-    if (products & 32) types.push('Tram');
-    if (products & 64) types.push('Bus');
-    if (products & 128) types.push('Ferry');
-    
-    // Simplify common combinations
-    if (types.length > 3) {
-      if (types.includes('Metro')) return ['Metro', 'Bus'];
-      if (types.includes('Local train')) return ['Train station'];
-      return ['Multi-modal'];
-    }
-    
-    return types;
+    return [...new Set(types)]; // Remove duplicates
   }
   
   async getStopArea(id: string): Promise<StopArea | undefined> {
@@ -465,8 +460,8 @@ export class TransitService {
             const lng = parseFloat(loc.lon);
             
             if (lat >= 59.0 && lat <= 60.0 && lng >= 17.5 && lng <= 19.0) {
-              // Determine transport types from products bitmask
-              const transportTypes = this.getTransportTypes(loc.products || 0);
+              // Get ACTUAL transport types from the API's productAtStop data
+              const transportTypes = this.getTransportTypesFromProductCodes(loc.productAtStop || []);
               const typeLabel = transportTypes.length > 0 ? ` (${transportTypes.join(', ')})` : '';
               
               locations.push({
