@@ -1792,20 +1792,15 @@ export class TransitService {
   private convertSLToTrafilabAreaId(slAreaId: string): string {
     // Map known SL station IDs to their Trafiklab equivalents
     const idMap: { [key: string]: string } = {
-      // Stockholm Central/City stations
-      '9021001005310000': '740000001', // Stockholm Central
-      '9005': '740000001', // Stockholm Central fallback
-      '9006': '740000001', // Stockholm City
+      // Stockholm Central/City stations - THESE WORK
+      '9021001005310000': '740000001', // Stockholm Central ✓ TESTED
+      '9005': '740000001', // Stockholm Central fallback ✓ TESTED
+      '9006': '740000001', // Stockholm City ✓ TESTED
+      '9004': '740000001', // T-Centralen ✓ TESTED
       
-      // Major stations
-      '9021001006031000': '740000631', // Sundbyberg
-      '9021001005171000': '740000517', // Flemingsberg  
-      '9001': '740000765', // Odenplan
-      '9004': '740000001', // T-Centralen
-      
-      // Common pendeltåg stations
-      '9180': '740000517', // Flemingsberg
-      '9192': '740000631', // Sundbyberg
+      // For other stations, disable mapping for now - let the API return fallback data
+      // Until we can find correct Trafiklab IDs, use the working Stockholm Central
+      // This will show real API data instead of fake platform numbers
     };
     
     // First check direct mapping
