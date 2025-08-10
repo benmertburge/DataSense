@@ -1,27 +1,56 @@
-import { Bell, User, Train } from 'lucide-react';
+import { Bell, User, Train, MapPin, FileText, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useQuery } from '@tanstack/react-query';
+import { Link, useLocation } from 'wouter';
 
 export default function Navbar() {
   const { user } = useAuth();
+  const [location] = useLocation();
 
-  const { data: compensationCases } = useQuery({
+  const { data: compensationCases = [] } = useQuery({
     queryKey: ['/api/compensation/cases'],
     enabled: !!user,
   });
 
-  const pendingNotifications = compensationCases?.filter((c: any) => 
+  const pendingNotifications = compensationCases.filter((c: any) => 
     c.status === 'detected' || c.status === 'processing'
-  ).length || 0;
+  ).length;
 
   return (
     <nav className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
-            <Train className="text-blue-600 text-xl mr-3" />
-            <h1 className="text-xl font-bold text-blue-600">TransitPro</h1>
+            <Link href="/">
+              <div className="flex items-center cursor-pointer">
+                <Train className="text-blue-600 text-xl mr-3" />
+                <h1 className="text-xl font-bold text-blue-600">TransitPro</h1>
+              </div>
+            </Link>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <Link href="/planner">
+              <Button variant={location === "/planner" ? "default" : "ghost"} size="sm">
+                <MapPin className="h-4 w-4 mr-2" />
+                Planner
+              </Button>
+            </Link>
+            
+            <Link href="/commute">
+              <Button variant={location === "/commute" ? "default" : "ghost"} size="sm">
+                <Calendar className="h-4 w-4 mr-2" />
+                Commutes
+              </Button>
+            </Link>
+            
+            <Link href="/compensation">
+              <Button variant={location === "/compensation" ? "default" : "ghost"} size="sm">
+                <FileText className="h-4 w-4 mr-2" />
+                Claims
+              </Button>
+            </Link>
           </div>
           
           <div className="flex items-center space-x-4">

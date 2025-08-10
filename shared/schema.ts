@@ -75,6 +75,31 @@ export const savedRoutes = pgTable("saved_routes", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Daily commute tracking for regular transit users
+export const commuteRoutes = pgTable("commute_routes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  name: varchar("name").notNull(),
+  originAreaId: varchar("origin_area_id").references(() => stopAreas.id).notNull(),
+  destinationAreaId: varchar("destination_area_id").references(() => stopAreas.id).notNull(),
+  departureTime: varchar("departure_time").notNull(), // HH:MM format
+  // Weekday selection - true means active on that day
+  monday: boolean("monday").default(false),
+  tuesday: boolean("tuesday").default(false),
+  wednesday: boolean("wednesday").default(false),
+  thursday: boolean("thursday").default(false),
+  friday: boolean("friday").default(false),
+  saturday: boolean("saturday").default(false),
+  sunday: boolean("sunday").default(false),
+  // Notification settings
+  notificationsEnabled: boolean("notifications_enabled").default(true),
+  alertMinutesBefore: integer("alert_minutes_before").default(15),
+  delayThresholdMinutes: integer("delay_threshold_minutes").default(20),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const journeys = pgTable("journeys", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id).notNull(),
@@ -143,6 +168,24 @@ export const insertCompensationCaseSchema = createInsertSchema(compensationCases
   id: true,
   createdAt: true,
 });
+
+export const insertCommuteRouteSchema = createInsertSchema(commuteRoutes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Types
+export type User = typeof users.$inferSelect;
+export type UpsertUser = typeof users.$inferInsert;
+export type SavedRoute = typeof savedRoutes.$inferSelect;
+export type InsertSavedRoute = z.infer<typeof insertSavedRouteSchema>;
+export type CommuteRoute = typeof commuteRoutes.$inferSelect;
+export type InsertCommuteRoute = z.infer<typeof insertCommuteRouteSchema>;
+export type Journey = typeof journeys.$inferSelect;
+export type InsertJourney = z.infer<typeof insertJourneySchema>;
+export type CompensationCase = typeof compensationCases.$inferSelect;
+export type InsertCompensationCase = z.infer<typeof insertCompensationCaseSchema>;
 
 export const journeyPlannerSchema = z.object({
   from: z.string().min(1, "Origin is required"),

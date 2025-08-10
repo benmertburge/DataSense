@@ -9,6 +9,7 @@ import Landing from "@/pages/landing";
 import Home from "@/pages/home";
 import JourneyPlanner from "@/pages/journey-planner";
 import Compensation from "@/pages/compensation";
+import Commute from "@/pages/commute";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -22,6 +23,7 @@ function Router() {
           <Route path="/" component={Home} />
           <Route path="/planner" component={JourneyPlanner} />
           <Route path="/compensation" component={Compensation} />
+          <Route path="/commute" component={Commute} />
         </>
       )}
       <Route component={NotFound} />

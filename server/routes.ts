@@ -281,6 +281,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Commute routes - for daily tracking with weekday selection
+  app.get('/api/commute-routes', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const routes = await storage.getUserCommuteRoutes(userId);
+      res.json(routes);
+    } catch (error) {
+      console.error("Error fetching commute routes:", error);
+      res.status(500).json({ message: "Failed to fetch commute routes" });
+    }
+  });
+
+  app.post('/api/commute-routes', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const routeData = { ...req.body, userId };
+      
+      const route = await storage.createCommuteRoute(routeData);
+      res.json(route);
+    } catch (error) {
+      console.error("Error creating commute route:", error);
+      res.status(500).json({ message: "Failed to create commute route" });
+    }
+  });
+
+  app.put('/api/commute-routes/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      
+      const route = await storage.updateCommuteRoute(id, updates);
+      res.json(route);
+    } catch (error) {
+      console.error("Error updating commute route:", error);
+      res.status(500).json({ message: "Failed to update commute route" });
+    }
+  });
+
+  app.delete('/api/commute-routes/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user.claims.sub;
+      
+      await storage.deleteCommuteRoute(id, userId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting commute route:", error);
+      res.status(500).json({ message: "Failed to delete commute route" });
+    }
+  });
+
+  app.get('/api/commute-routes/today', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const today = new Date();
+      const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      const dayOfWeek = dayNames[today.getDay()];
+      
+      const routes = await storage.getActiveCommuteRoutesForDay(userId, dayOfWeek);
+      res.json(routes);
+    } catch (error) {
+      console.error("Error fetching today's commute routes:", error);
+      res.status(500).json({ message: "Failed to fetch today's commute routes" });
+    }
+  });
+
   // Background job to process automatic compensation detection
   setInterval(async () => {
     try {

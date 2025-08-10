@@ -4,6 +4,7 @@ import {
   stopPoints,
   lines,
   savedRoutes,
+  commuteRoutes,
   journeys,
   compensationCases,
   deviations,
@@ -13,10 +14,12 @@ import {
   type StopPoint,
   type Line,
   type SavedRoute,
+  type CommuteRoute,
   type Journey,
   type CompensationCase,
   type Deviation,
   type InsertSavedRoute,
+  type InsertCommuteRoute,
   type InsertJourney,
   type InsertCompensationCase,
 } from "@shared/schema";
@@ -39,6 +42,13 @@ export interface IStorage {
   getUserSavedRoutes(userId: string): Promise<SavedRoute[]>;
   createSavedRoute(route: InsertSavedRoute): Promise<SavedRoute>;
   deleteSavedRoute(id: string, userId: string): Promise<void>;
+  
+  // Commute routes (daily tracking with weekdays)
+  getUserCommuteRoutes(userId: string): Promise<CommuteRoute[]>;
+  createCommuteRoute(route: InsertCommuteRoute): Promise<CommuteRoute>;
+  updateCommuteRoute(id: string, updates: Partial<CommuteRoute>): Promise<CommuteRoute>;
+  deleteCommuteRoute(id: string, userId: string): Promise<void>;
+  getActiveCommuteRoutesForDay(userId: string, dayOfWeek: string): Promise<CommuteRoute[]>;
   
   // Journeys
   getUserJourneys(userId: string, limit?: number): Promise<Journey[]>;
@@ -121,6 +131,43 @@ export class DatabaseStorage implements IStorage {
     await db.update(savedRoutes)
       .set({ isActive: false })
       .where(and(eq(savedRoutes.id, id), eq(savedRoutes.userId, userId)));
+  }
+
+  // Commute routes implementation
+  async getUserCommuteRoutes(userId: string): Promise<CommuteRoute[]> {
+    return await db.select().from(commuteRoutes).where(eq(commuteRoutes.userId, userId));
+  }
+
+  async createCommuteRoute(route: InsertCommuteRoute): Promise<CommuteRoute> {
+    const [newRoute] = await db.insert(commuteRoutes).values(route).returning();
+    return newRoute;
+  }
+
+  async updateCommuteRoute(id: string, updates: Partial<CommuteRoute>): Promise<CommuteRoute> {
+    const [updatedRoute] = await db
+      .update(commuteRoutes)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(commuteRoutes.id, id))
+      .returning();
+    return updatedRoute;
+  }
+
+  async deleteCommuteRoute(id: string, userId: string): Promise<void> {
+    await db.delete(commuteRoutes).where(and(eq(commuteRoutes.id, id), eq(commuteRoutes.userId, userId)));
+  }
+
+  async getActiveCommuteRoutesForDay(userId: string, dayOfWeek: string): Promise<CommuteRoute[]> {
+    const dayColumn = dayOfWeek.toLowerCase() as keyof typeof commuteRoutes;
+    return await db
+      .select()
+      .from(commuteRoutes)
+      .where(
+        and(
+          eq(commuteRoutes.userId, userId),
+          eq(commuteRoutes.isActive, true),
+          eq(commuteRoutes[dayColumn], true)
+        )
+      );
   }
 
   // Journeys

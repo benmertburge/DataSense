@@ -873,15 +873,20 @@ export class TransitService {
             }
           });
           
-          // ADD DATETIME PARAMETERS - THIS WAS THE MISSING PIECE!
-          const isoDateTime = dateTime.toISOString();
-          if (searchType === 'departure') {
-            queryParams.append('departure_time', isoDateTime);
+          // FIXED: Use correct SL API datetime parameters based on official docs
+          const slDate = dateTime.toISOString().split('T')[0]; // YYYY-MM-DD
+          const slTime = dateTime.toTimeString().substring(0, 5); // HH:MM
+          
+          queryParams.append('date', slDate);
+          queryParams.append('time', slTime);
+          
+          if (searchType === 'arrival') {
+            queryParams.append('searchForArrival', '1');
           } else {
-            queryParams.append('arrival_time', isoDateTime);
+            queryParams.append('searchForArrival', '0');
           }
           
-          console.log(`Using ${searchType} time: ${isoDateTime}`);
+          console.log(`Using ${searchType} time: ${slDate} ${slTime}`);
           
           const url = `${this.SL_JOURNEY_API}/trips?${queryParams}`;
           const response = await fetch(url);
