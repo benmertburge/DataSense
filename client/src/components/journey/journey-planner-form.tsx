@@ -132,10 +132,10 @@ export default function JourneyPlannerForm() {
 
   return (
     <>
-      <Card className="shadow-sm border border-gray-200">
+      <Card className="shadow-sm border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
         <CardHeader>
-          <CardTitle className="flex items-center">
-            <Search className="text-blue-600 mr-2" />
+          <CardTitle className="flex items-center text-gray-900 dark:text-white">
+            <Search className="text-blue-600 dark:text-blue-400 mr-2" />
             Plan Journey
           </CardTitle>
         </CardHeader>
@@ -180,19 +180,19 @@ export default function JourneyPlannerForm() {
                         <MapPin className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                         
                         {showFromDropdown && fromStations.length > 0 && (
-                          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                          <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto">
                             {fromStations.map((station: Station) => (
                               <button
                                 key={station.id}
                                 type="button"
-                                className="w-full px-4 py-2 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                                className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-b-0 text-gray-900 dark:text-white"
                                 onClick={() => selectFromStation(station)}
                               >
                                 <div className="flex items-center">
-                                  <MapPin className="h-4 w-4 text-gray-400 mr-2" />
+                                  <MapPin className="h-4 w-4 text-gray-400 dark:text-gray-500 mr-2" />
                                   <div>
                                     <div className="font-medium">{station.name}</div>
-                                    <div className="text-sm text-gray-500">{station.type}</div>
+                                    <div className="text-sm text-gray-500 dark:text-gray-400">{station.type}</div>
                                   </div>
                                 </div>
                               </button>
@@ -255,19 +255,19 @@ export default function JourneyPlannerForm() {
                         <MapPin className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                         
                         {showToDropdown && toStations.length > 0 && (
-                          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                          <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto">
                             {toStations.map((station: Station) => (
                               <button
                                 key={station.id}
                                 type="button"
-                                className="w-full px-4 py-2 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                                className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-b-0 text-gray-900 dark:text-white"
                                 onClick={() => selectToStation(station)}
                               >
                                 <div className="flex items-center">
-                                  <MapPin className="h-4 w-4 text-gray-400 mr-2" />
+                                  <MapPin className="h-4 w-4 text-gray-400 dark:text-gray-500 mr-2" />
                                   <div>
                                     <div className="font-medium">{station.name}</div>
-                                    <div className="text-sm text-gray-500">{station.type}</div>
+                                    <div className="text-sm text-gray-500 dark:text-gray-400">{station.type}</div>
                                   </div>
                                 </div>
                               </button>

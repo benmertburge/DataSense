@@ -165,10 +165,10 @@ export default function CompensationTracker() {
       </Card>
 
       {/* Quick Settings */}
-      <Card className="shadow-sm border border-gray-200">
+      <Card className="shadow-sm border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
         <CardHeader>
-          <CardTitle className="flex items-center">
-            <svg className="h-5 w-5 text-blue-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+          <CardTitle className="flex items-center text-gray-900 dark:text-white">
+            <svg className="h-5 w-5 text-blue-600 dark:text-blue-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
             </svg>
             Quick Settings
@@ -177,45 +177,45 @@ export default function CompensationTracker() {
         <CardContent>
           <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <span className="text-sm font-medium">Push Notifications</span>
+              <span className="text-sm font-medium text-gray-900 dark:text-white">Push Notifications</span>
               <div className="relative inline-flex h-6 w-11 items-center rounded-full bg-blue-600">
                 <span className="inline-block h-4 w-4 transform rounded-full bg-white translate-x-6 transition"></span>
               </div>
             </div>
 
             <div className="flex justify-between items-center">
-              <span className="text-sm font-medium">Delay Alerts</span>
+              <span className="text-sm font-medium text-gray-900 dark:text-white">Delay Alerts</span>
               <div className="relative inline-flex h-6 w-11 items-center rounded-full bg-blue-600">
                 <span className="inline-block h-4 w-4 transform rounded-full bg-white translate-x-6 transition"></span>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Alert Timing</label>
-              <select className="w-full text-sm border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-blue-600 focus:border-transparent">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Alert Timing</label>
+              <select className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg py-2 px-3 focus:ring-2 focus:ring-blue-600 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                 <option>15 minutes before departure</option>
                 <option>10 minutes before departure</option>
                 <option>5 minutes before departure</option>
               </select>
             </div>
 
-            <hr className="border-gray-200" />
+            <hr className="border-gray-200 dark:border-gray-700" />
 
             <div className="space-y-2">
-              <button className="w-full text-left text-sm text-gray-700 hover:text-blue-600 py-2">
+              <button className="w-full text-left text-sm text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 py-2">
                 <svg className="inline h-4 w-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 2 2 0 012 2 1 1 0 102 0 4 4 0 00-4-4z" clipRule="evenodd" />
                 </svg>
                 Personal Information
               </button>
-              <button className="w-full text-left text-sm text-gray-700 hover:text-blue-600 py-2">
+              <button className="w-full text-left text-sm text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 py-2">
                 <svg className="inline h-4 w-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" />
                   <path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clipRule="evenodd" />
                 </svg>
                 Payment Methods
               </button>
-              <button className="w-full text-left text-sm text-gray-700 hover:text-blue-600 py-2">
+              <button className="w-full text-left text-sm text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 py-2">
                 <svg className="inline h-4 w-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z" clipRule="evenodd" />
                 </svg>
