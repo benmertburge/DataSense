@@ -116,9 +116,9 @@ export class TransitService {
         from: { areaId: from.id, name: from.name, platform: this.getPlatform(from, route.firstLine!) },
         to: { areaId: route.hubId!, name: route.viaHub, platform: this.getPlatform({ id: route.hubId! } as StopArea, route.firstLine!) },
         plannedDeparture: new Date(currentTime.getTime() + timeOffset * 60000).toISOString(),
-        plannedArrival: new Date(currentTime.getTime() + (route.firstLegTime + timeOffset) * 60000).toISOString(),
+        plannedArrival: new Date(currentTime.getTime() + ((route.firstLegTime || 20) + timeOffset) * 60000).toISOString(),
         expectedDeparture: new Date(currentTime.getTime() + (timeOffset + route.delay) * 60000).toISOString(),
-        expectedArrival: new Date(currentTime.getTime() + (route.firstLegTime + timeOffset + route.delay) * 60000).toISOString(),
+        expectedArrival: new Date(currentTime.getTime() + ((route.firstLegTime || 20) + timeOffset + route.delay) * 60000).toISOString(),
         platformChange: type === "main",
       };
       legs.push(firstLeg);
@@ -136,7 +136,7 @@ export class TransitService {
       }
 
       // Second leg
-      currentTime = new Date(currentTime.getTime() + (route.firstLegTime + route.transferWalk + timeOffset + route.delay) * 60000);
+      currentTime = new Date(currentTime.getTime() + ((route.firstLegTime || 20) + route.transferWalk + timeOffset + route.delay) * 60000);
       const secondLeg: TransitLeg = {
         kind: "TRANSIT",
         line: route.secondLine!,
@@ -145,22 +145,25 @@ export class TransitService {
         from: { areaId: route.hubId!, name: route.viaHub!, platform: this.getPlatform({ id: route.hubId! } as StopArea, route.secondLine!) },
         to: { areaId: to.id, name: to.name, platform: this.getPlatform(to, route.secondLine!) },
         plannedDeparture: new Date(currentTime.getTime() + 2 * 60000).toISOString(), // 2 min connection time
-        plannedArrival: new Date(currentTime.getTime() + (route.secondLegTime + 2) * 60000).toISOString(),
+        plannedArrival: new Date(currentTime.getTime() + ((route.secondLegTime || 25) + 2) * 60000).toISOString(),
         expectedDeparture: new Date(currentTime.getTime() + 2 * 60000).toISOString(), // On time for second leg
-        expectedArrival: new Date(currentTime.getTime() + (route.secondLegTime + 2) * 60000).toISOString(),
+        expectedArrival: new Date(currentTime.getTime() + ((route.secondLegTime || 25) + 2) * 60000).toISOString(),
       };
       legs.push(secondLeg);
     }
 
-    const plannedDeparture = legs[0].kind === "TRANSIT" ? legs[0].plannedDeparture : baseTime.toISOString();
-    const plannedArrival = legs[legs.length - 1].kind === "TRANSIT" ? 
-      legs[legs.length - 1].plannedArrival : 
+    const firstLeg = legs[0];
+    const lastLeg = legs[legs.length - 1];
+    
+    const plannedDeparture = firstLeg.kind === "TRANSIT" ? firstLeg.plannedDeparture : baseTime.toISOString();
+    const plannedArrival = lastLeg.kind === "TRANSIT" ? 
+      lastLeg.plannedArrival : 
       new Date(baseTime.getTime() + 42 * 60000).toISOString();
 
-    const expectedDeparture = legs[0].kind === "TRANSIT" && legs[0].expectedDeparture ? 
-      legs[0].expectedDeparture : plannedDeparture;
-    const expectedArrival = legs[legs.length - 1].kind === "TRANSIT" && legs[legs.length - 1].expectedArrival ? 
-      legs[legs.length - 1].expectedArrival : plannedArrival;
+    const expectedDeparture = firstLeg.kind === "TRANSIT" && firstLeg.expectedDeparture ? 
+      firstLeg.expectedDeparture : plannedDeparture;
+    const expectedArrival = lastLeg.kind === "TRANSIT" && lastLeg.expectedArrival ? 
+      lastLeg.expectedArrival : plannedArrival;
 
     const delayMinutes = Math.round((new Date(expectedArrival).getTime() - new Date(plannedArrival).getTime()) / 60000);
 
