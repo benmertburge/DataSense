@@ -95,8 +95,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`ROUTES DEBUG: Search type: ${data.leaveAt ? 'departure' : 'arrival'}`);
       
       // Get station details - ensure we have valid station IDs
-      const fromId = typeof data.from === 'string' ? data.from : data.from.id;
-      const toId = typeof data.to === 'string' ? data.to : data.to.id;
+      const fromId = typeof data.from === 'string' ? data.from : data.from?.id;
+      const toId = typeof data.to === 'string' ? data.to : data.to?.id;
+      
+      // Validate that we have numeric station IDs, not station names
+      if (!fromId || !toId) {
+        throw new Error("Missing station IDs in request");
+      }
+      
+      // Check if we received station names instead of IDs
+      if (fromId.includes(' ') || toId.includes(' ')) {
+        throw new Error("Station names received instead of station IDs. Form should submit station objects with numeric IDs.");
+      }
       
       // Debug the actual data being sent
       console.log(`ROUTE DEBUG: fromId type: ${typeof fromId}, value: "${fromId}"`);

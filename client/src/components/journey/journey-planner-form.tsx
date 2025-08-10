@@ -61,8 +61,17 @@ export default function JourneyPlannerForm() {
   }) as { data: Station[] };
 
   const searchMutation = useMutation({
-    mutationFn: async (data: JourneyPlannerRequest) => {
-      const response = await apiRequest('POST', '/api/trips/search', data);
+    mutationFn: async (data: JourneyPlannerRequest & { leaveAt: boolean }) => {
+      // Ensure we're sending station objects with IDs, not strings
+      const searchData = {
+        ...data,
+        from: typeof data.from === 'string' ? { id: data.from, name: data.from } : data.from,
+        to: typeof data.to === 'string' ? { id: data.to, name: data.to } : data.to
+      };
+      
+      console.log('Submitting search with:', searchData);
+      
+      const response = await apiRequest('POST', '/api/trips/search', searchData);
       return response.json();
     },
     onSuccess: (data) => {
@@ -70,7 +79,7 @@ export default function JourneyPlannerForm() {
       queryClient.setQueryData(['trip-results'], data);
       toast({
         title: "Routes Found",
-        description: `Found ${data.alternatives?.length + 1 || 1} route options`,
+        description: `Found ${data.length || 0} route options`,
       });
     },
     onError: (error) => {
