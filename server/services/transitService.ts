@@ -909,8 +909,27 @@ export class TransitService {
           
           const data = await response.json();
           
+          console.log(`SL API RESPONSE STATUS: ${response.status}`);
+          console.log(`SL API REQUESTED: ${slDate} ${slTime} (${searchType})`);
+          
+          // Check if we're searching for a past time today
+          const now = new Date();
+          const searchDateTime = new Date(`${slDate}T${slTime}:00`);
+          
+          if (slDate === now.toISOString().split('T')[0] && searchDateTime < now) {
+            console.log(`WARNING: Searching for PAST time ${slDate} ${slTime} - current time is ${now.toISOString()}`);
+            console.log(`SL API will return next available departures after current time`);
+          }
+          
           if (data.journeys && Array.isArray(data.journeys)) {
             console.log(`SL strategy ${index + 1} returned ${data.journeys.length} journeys`);
+            // Check the actual departure times returned
+            data.journeys.slice(0, 2).forEach((journey: any, idx: number) => {
+              const firstLeg = journey.legs?.[0];
+              if (firstLeg?.origin?.departureTimePlanned) {
+                console.log(`Journey ${idx + 1} first departure: ${firstLeg.origin.departureTimePlanned}`);
+              }
+            });
             allJourneys = allJourneys.concat(data.journeys);
           }
           
