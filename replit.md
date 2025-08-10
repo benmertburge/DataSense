@@ -56,7 +56,7 @@ Preferred communication style: Simple, everyday language.
 - **Journey Planning**: ResRobot v2.1 API for route structure and trip planning with station ID-based queries
 - **Real-time Data**: Trafiklab Realtime API for live departure times and delay information
 - **Platform Information**: Trafiklab Timetables API provides authentic platform numbers (e.g., Platform 4 at Tumba, Platform 1 at Stockholm City)
-- **Line Colors**: Official SL transport colors - red for trains, blue for metro, green for trams
+- **Line Colors**: Authentic SL transport colors - pink for trains, blue for metro, red for buses, orange for trams
 - **Smart Routing**: Fully dynamic station selection using real Swedish transport APIs - zero hardcoded values
 - **Data Integration**: ResRobot provides journey structure, Trafiklab provides real-time departure times and platform data
 - **Authentication**: Working API keys for ResRobot and Trafiklab services
