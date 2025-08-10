@@ -861,14 +861,14 @@ export class TransitService {
           calc_number_of_trips: 3,
           route_type: 'leasttime'
         },
-        // Via Odenplan
+        // Via Stockholm Södra (preferred by user - less crowded, easier connections)
         {
           type_origin: 'any',
           name_origin: fromStation.id,
           type_destination: 'any', 
           name_destination: toStation.id,
           type_via: 'any',
-          name_via: '9091001000009117', // Odenplan SL ID
+          name_via: '9091001000009190', // Stockholm Södra SL ID
           calc_number_of_trips: 3,
           route_type: 'leasttime'
         },
