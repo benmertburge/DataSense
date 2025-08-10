@@ -1,0 +1,365 @@
+What “SL structure” means for your app
+At a high level you deal with five layers:
+
+Places/Stops (aka “sites / stop areas / stop points”)
+
+Lines & journeys (the vehicle trips that run on those lines)
+
+Itineraries/legs (single- or multi-leg passenger journeys)
+
+Realtime (departures & vehicle predictions) + Traffic info (deviations/disruptions)
+
+Compensation (förseningsersättning): detect eligibility, collect personal info, generate a claim packet (PDF) with evidence.
+
+1) Places / Stops: IDs and what they actually are
+Site / StopArea: a place passengers recognize (e.g., Stockholm Odenplan).
+
+StopPoint / Platform / Bay: a specific platform/track/stand at that area (e.g., Odenplan spår 1, Odenplan bus C).
+
+IDs are not uniform across sources. Treat them as strings (don’t force 32-bit ints). Some providers use large numeric strings; others use alphanumeric.
+
+Direction codes: many feeds use 1/2 or A/B. Don’t assume which is “northbound”; always surface the human direction label (e.g., “Nynäshamn”).
+
+Minimal stop schema
+
+ts
+Copy
+Edit
+type StopArea = {
+  id: string;         // provider/site id (string!)
+  name: string;       // "Stockholm Odenplan"
+  lat?: number;
+  lon?: number;
+  type?: "METROSTN"|"RAILWSTN"|"BUSTERM"|"TRAMSTN"|"FERRY"|"OTHER";
+};
+
+type StopPoint = {
+  id: string;         // platform/stand id
+  areaId: string;     // foreign key to StopArea.id
+  name?: string;      // "Odenplan"
+  designation?: string; // "1", "2", "C", track letter etc.
+};
+2) Lines, journeys, and service
+Line: the public line designation (e.g., 17, 43, 4).
+
+Journey/Trip: a specific vehicle run of a line with a journey id (think: that one train at 08:12).
+
+Calendar/Service days exist in static data (schedules), but you’ll rely on realtime for “expected” times.
+
+Line/Journey schema
+
+ts
+Copy
+Edit
+type Line = {
+  id: string;                 // provider line id
+  number: string;             // "17", "43", "4", "515"
+  mode: "BUS"|"METRO"|"TRAIN"|"TRAM"|"FERRY";
+  name?: string;              // e.g., "Pendeltåg"
+  operatorId?: string;        // SL, etc.
+};
+
+type JourneyRef = {
+  id: string;                 // vehicle/journey id from realtime or planner
+  lineId: string;
+  directionCode?: 1|2|number|string;
+  directionText?: string;     // "Nynäshamn", "Bålsta"
+};
+3) Itineraries & legs (single vs multi)
+Single-leg trip: one vehicle from origin to destination (e.g., Odenplan → Flemingsberg on Pendeltåg 41).
+
+Multi-leg trip: bus → metro → train, with transfers (walk time and minimum transfer constraints).
+
+Walk legs are real legs — include them so you can warn when a late inbound causes a missed connection.
+
+arriveBy vs leaveAt: support both; you already have leaveAt + minTransferMinutes.
+
+Itinerary schema (copy/paste ready)
+
+ts
+Copy
+Edit
+type Itinerary = {
+  id: string;
+  legs: Leg[];
+  plannedDeparture: string;    // ISO
+  plannedArrival: string;      // ISO
+  expectedDeparture?: string;  // ISO (from realtime)
+  expectedArrival?: string;    // ISO (from realtime)
+  delayMinutes?: number;       // computed: expectedArrival - plannedArrival
+};
+
+type Leg =
+  | TransitLeg
+  | WalkLeg;
+
+type TransitLeg = {
+  kind: "TRANSIT";
+  line: Line;
+  journey: JourneyRef;
+  from: { areaId: string, pointId?: string, name: string, platform?: string };
+  to:   { areaId: string, pointId?: string, name: string, platform?: string };
+  plannedDeparture: string;
+  plannedArrival: string;
+  expectedDeparture?: string;
+  expectedArrival?: string;
+  cancelled?: boolean;
+  platformChange?: boolean; // detect mismatch vs planned platform
+};
+
+type WalkLeg = {
+  kind: "WALK";
+  fromAreaId: string;
+  toAreaId: string;
+  durationMinutes: number;
+  meters?: number;
+};
+4) Realtime + “Traffic data” (deviations)
+You need to merge two realtime streams:
+
+A) Live departures/predictions
+For each StopPoint/StopArea: list of upcoming departures with scheduled and expected times, state flags (EXPECTED, ATSTOP, ASSIGNED, CANCELLED), destination text, and platform/track.
+
+Use these to compute best trip now, to show countdowns, and to spot cancellations & platform changes.
+
+Departure schema
+
+ts
+Copy
+Edit
+type Departure = {
+  stopAreaId: string;
+  stopPointId?: string;
+  line: Line;
+  journey: JourneyRef;
+  destinationText: string;     // “Västerhaninge”
+  plannedTime: string;         // ISO
+  expectedTime?: string;       // ISO
+  state?: "EXPECTED"|"ATSTOP"|"CANCELLED"|"ASSIGNED"|"NORMALPROGRESS";
+  platform?: string;           // "1", "2", "C", etc.
+};
+B) Deviations / disruptions (a.k.a. “traffic info”)
+These are service alerts: line-wide problems, station closures, partial suspensions, replacement buses, safety disruptions, etc.
+
+Usually include: title, text, affected lines/stops (ids), validity window, severity (info/warn/critical).
+
+You must map their affected IDs to your route’s areas/points/lines to decide if they apply.
+
+Deviation schema
+
+ts
+Copy
+Edit
+type Deviation = {
+  id: string;
+  title: string;
+  message: string;
+  severity: "info"|"warn"|"critical";
+  affected: {
+    areaIds?: string[];
+    pointIds?: string[];
+    lineIds?: string[];
+  };
+  validFrom?: string;
+  validTo?: string;
+  lastUpdated?: string;
+};
+How to combine them
+For each saved route: resolve origin/via/destination into site ids.
+
+Pull departures for those sites (and nearby alternates if you want).
+
+Pull deviations, filter to anything that hits the lineIds or siteIds you’ll likely use.
+
+Compute “best” itinerary with current predictions, then mark:
+
+delayMinutes
+
+cancelled legs
+
+platformChange vs planned
+
+attach any matching deviations for transparency.
+
+5) Compensation (förseningsersättning)
+You need two parts: eligibility detection and claim packet.
+
+A) Detect eligibility
+You set thresholds (e.g., 20+ min door-to-door delay). Keep them configurable (operator rules can change).
+
+For multi-leg: compare planned arrival (from trip planner) vs expected/actual arrival (from realtime legs).
+
+Mark a case when expectedArrival - plannedArrival >= threshold.
+
+Also trigger a case if a cancellation or missed connection creates the same net delay.
+
+Case snapshot
+
+ts
+Copy
+Edit
+type CompCase = {
+  id: string;
+  routeId: string;
+  plannedDeparture: string;
+  plannedArrival: string;
+  expectedArrival?: string;
+  actualArrival?: string;          // if the user completes the trip and confirms
+  delayMinutes: number;
+  ruleApplied: { thresholdMin: number, source: "config"|"operatorRule" };
+  legs: Leg[];                     // frozen snapshot
+  deviations: Deviation[];         // matching alerts at that time
+  evidenceIds: string[];           // screenshots, api dumps, receipts
+  status: "detected"|"draft"|"submitted";
+};
+B) Claim packet (PDF) — what it is and why
+Some operators use web forms; others accept attachments. You generate a PDF summary that:
+
+Lists who is claiming (personal info).
+
+When/where they traveled (from/to, date/time).
+
+The line(s) and legs, planned vs actual, calculated delay.
+
+Reason/evidence: deviations matched, cancellation flags, screenshots of departure boards, receipts (e.g., taxi) if applicable.
+
+A signature/date line.
+
+Tech: server-side (e.g., pdfkit/pdf-lib) or HTML → PDF (Chromium).
+
+You also export a JSON copy to attach to API submissions if a provider adds one later.
+
+PDF content outline
+
+pgsql
+Copy
+Edit
+Page 1: Claim summary
+- Claim ID
+- Claimant: Full name, email, phone
+- Payment method: Bankgiro/Plusgiro/IBAN/Swish (capture only what user chooses)
+- Travel: Date, planned dep/arr, actual/expected arr, delay minutes
+- Route: Origin, via (if any), destination; lines/legs with platforms
+- Disruption context: linked deviations (titles + time window)
+
+Page 2: Evidence
+- Table of evidence items (type, timestamp, brief description)
+- Thumbnails (screenshots, receipts)
+- Hash list (SHA-256) for integrity
+
+Footer: Privacy note, data retention policy, and signature/date block
+Personal info you must collect (don’t over-collect)
+Required (typical):
+
+Full name
+
+Email (or phone) for contact
+
+Payment details (one of): Swish number, Bank/IBAN (or Bankgiro/Plusgiro), or “travel voucher” preference if supported
+
+Journey details: date, time, from, to, line(s), ticket type (period card, single, etc.)
+
+Optional (only when needed):
+
+Address (some claims need it for paper payouts)
+
+Ticket/card number or receipt ID
+
+Taxi receipt if claiming taxi reimbursement (photo or PDF)
+
+Never store more than needed, and encrypt at rest.
+
+Exact payout thresholds/amounts vary over time. Keep those as config and show them to the user in-app (“Current rule: compensation if delay ≥ X min”). Don’t hardcode money or minute thresholds in code.
+
+API shapes you’ll need
+Trip search (to show options now):
+
+ruby
+Copy
+Edit
+GET  /api/trips?from=areaId&to=areaId&via=areaId?&leaveAt=HH:mm&arriveBy=false
+-> { best: Itinerary, alternatives: Itinerary[] }
+Departures for a route (live panel):
+
+yaml
+Copy
+Edit
+GET  /api/routes/:id/live
+-> { best: Itinerary, alternatives: Itinerary[], departures: Record<areaId, Departure[]>, deviations: Deviation[] }
+Detect & create compensation case:
+
+csharp
+Copy
+Edit
+POST /api/comp/cases/detect { routeId, when?: ISO } 
+-> { case: CompCase | null }  // null if under threshold
+Submit claim packet (creates PDF + stores payload):
+
+css
+Copy
+Edit
+POST /api/comp/submit
+{
+  caseId,
+  claimant: { name, email, phone? },
+  payout: { method: "swish"|"bank"|"giro", value: string },
+  ticket?: { type: "period"|"single"|"other", reference?: string },
+  consent: true
+}
+-> { caseId, pdfUrl, status: "submitted" }
+Evidence upload (screenshots/receipts):
+
+bash
+Copy
+Edit
+POST /api/comp/cases/:id/evidence (multipart)
+-> { evidenceId, previewUrl }
+Alerts you must support (and how to decide)
+DELAY: itinerary delay ≥ threshold or an earlier leg delay makes a later connection impossible.
+
+CANCEL: any planned transit leg has cancelled=true.
+
+PLATFORM: platformChange=true within the user’s lead window (e.g., 15 min).
+
+HEADWAY: gap between departures for user’s line at origin exceeds configured minutes.
+
+NO_SERVICE: planner can’t find a viable itinerary within the next N minutes.
+
+Dedupe on (routeId, kind, window) and send via web push / email / SMS per user preference.
+
+Privacy & security (this matters because you store PII + payments)
+Hash passwords with Argon2id.
+
+JWT: short-lived access (15m) + rotating refresh (30d).
+
+Encrypt compensation payloads at rest (Field-level AES-GCM is fine; store key via env/secret manager).
+
+Data minimization: don’t keep raw receipts/screens after claim unless user asks.
+
+Retention: default 90 days for claims + evidence unless law/policy requires longer.
+
+Audit log: who created/edited what, and when.
+
+Edge cases you must handle
+Large IDs: treat all external IDs as strings (you already hit int overflow earlier).
+
+DST/timezone: always compute in Europe/Stockholm.
+
+Night buses cross midnight → itinerary date rollovers.
+
+Trip parts missing realtime: mix planned + expected safely; mark stale data.
+
+Rate limits: backoff, local cache (60–120s), and circuit breaker.
+
+Platform unknown: don’t show “change” when one side is missing.
+
+Mixed sources: deviations may list areas while departures list points. Map both.
+
+What to implement first (so it actually works)
+Mock provider that returns realistic departures, deviations, and itineraries for the Stockholm lines you care about → lets the UI and alerts work today.
+
+Swap in real provider behind a flag once your keys and base URLs are verified.
+
+Build compensation case detection using only your computed delay + stored snapshots.
+
+Add PDF generator and a simple submit screen that collects only the fields listed above.
