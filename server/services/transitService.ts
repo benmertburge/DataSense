@@ -62,8 +62,10 @@ export class TransitService {
       destId: toId,
       format: 'json',
       accessId: apiKey,
-      numTrips: '5',
-      searchForArrival: searchForArrival ? '1' : '0'  // 0 = depart at time, 1 = arrive by time
+      numTrips: '10',  // Request more trips to get different routing options
+      searchForArrival: searchForArrival ? '1' : '0',
+      alternatives: 'true',  // Request alternative routes
+      rtMode: 'FULL'  // Include real-time data and platform info
     });
 
     if (dateTime) {
@@ -150,7 +152,15 @@ export class TransitService {
         console.log(`DEBUG: ResRobot Times - Origin date: ${leg.Origin?.date}, time: ${leg.Origin?.time}`);
         console.log(`DEBUG: ResRobot Times - Destination date: ${leg.Destination?.date}, time: ${leg.Destination?.time}`);
         console.log(`DEBUG: ResRobot Stations - From: ${leg.Origin?.name}, To: ${leg.Destination?.name}`);
-        console.log(`DEBUG: ResRobot Platforms - From track: ${leg.Origin?.track}, To track: ${leg.Destination?.track}`);
+        // Debug all available platform/track fields from ResRobot
+        console.log(`DEBUG: ResRobot Platform Fields:`, {
+          originTrack: leg.Origin?.track,
+          originRtTrack: leg.Origin?.rtTrack,
+          originPlatform: leg.Origin?.platform,
+          destTrack: leg.Destination?.track,
+          destRtTrack: leg.Destination?.rtTrack,
+          destPlatform: leg.Destination?.platform
+        });
         
         legs.push({
           kind: 'TRANSIT',
@@ -167,12 +177,12 @@ export class TransitService {
           from: {
             areaId: leg.Origin?.extId || 'unknown',
             name: leg.Origin?.name || 'Unknown',
-            platform: leg.Origin?.track || undefined
+            platform: leg.Origin?.track || leg.Origin?.rtTrack || leg.Origin?.platform || undefined
           },
           to: {
             areaId: leg.Destination?.extId || 'unknown',
             name: leg.Destination?.name || 'Unknown',
-            platform: leg.Destination?.track || undefined
+            platform: leg.Destination?.track || leg.Destination?.rtTrack || leg.Destination?.platform || undefined
           },
           plannedDeparture: this.formatResRobotDateTime(leg.Origin?.date, leg.Origin?.time),
           plannedArrival: this.formatResRobotDateTime(leg.Destination?.date, leg.Destination?.time)
