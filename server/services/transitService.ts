@@ -114,17 +114,10 @@ export class TransitService {
     for (const leg of legArray) {
       if (leg.type === 'WALK') {
         legs.push({
-          type: 'walk',
-          from: {
-            name: leg.Origin?.name || 'Unknown',
-            coord: [parseFloat(leg.Origin?.lat || '0'), parseFloat(leg.Origin?.lon || '0')]
-          },
-          to: {
-            name: leg.Destination?.name || 'Unknown', 
-            coord: [parseFloat(leg.Destination?.lat || '0'), parseFloat(leg.Destination?.lon || '0')]
-          },
-          duration: this.parseDuration(leg.duration || '00:00:00'),
-          distance: parseInt(leg.dist || '0')
+          kind: 'WALK',
+          fromAreaId: leg.Origin?.id || 'unknown',
+          toAreaId: leg.Destination?.id || 'unknown',
+          durationMinutes: this.parseDuration(leg.duration || '00:00:00')
         } as WalkLeg);
       } else {
         // Transit leg - ResRobot Product array contains line info
@@ -138,19 +131,9 @@ export class TransitService {
         console.log(`DEBUG: ResRobot Times - Destination date: ${leg.Destination?.date}, time: ${leg.Destination?.time}`);
         
         legs.push({
-          type: 'transit',
-          from: {
-            name: leg.Origin?.name || 'Unknown',
-            coord: [parseFloat(leg.Origin?.lat || '0'), parseFloat(leg.Origin?.lon || '0')],
-            platform: leg.Origin?.track || undefined,
-            stationId: leg.Origin?.id || undefined
-          },
-          to: {
-            name: leg.Destination?.name || 'Unknown',
-            coord: [parseFloat(leg.Destination?.lat || '0'), parseFloat(leg.Destination?.lon || '0')],
-            platform: leg.Destination?.track || undefined,
-            stationId: leg.Destination?.id || undefined
-          },
+          kind: 'TRANSIT',
+          journeyId: `RR_${lineNumber}_${index}`,
+          duration: this.parseDuration(leg.duration || '00:00:00'),
           line: {
             id: `RR_${lineNumber}`,
             number: lineNumber,
@@ -159,59 +142,33 @@ export class TransitService {
             operatorId: product?.operator || product?.operatorCode || 'SL',
             color: this.getLineColor(product)
           },
-          departureTime: leg.Origin?.time || '08:30:00', // ResRobot scheduled time
-          arrivalTime: leg.Destination?.time || '09:30:00', // ResRobot scheduled time
-          duration: this.parseDuration(leg.duration || '00:00:00'),
-          direction: leg.direction || leg.Destination?.name || 'Unknown Direction'
+          from: {
+            areaId: leg.Origin?.extId || 'unknown',
+            name: leg.Origin?.name || 'Unknown',
+            platform: leg.Origin?.track || undefined
+          },
+          to: {
+            areaId: leg.Destination?.extId || 'unknown',
+            name: leg.Destination?.name || 'Unknown',
+            platform: leg.Destination?.track || undefined
+          },
+          plannedDeparture: this.formatResRobotDateTime(leg.Origin?.date, leg.Origin?.time),
+          plannedArrival: this.formatResRobotDateTime(leg.Destination?.date, leg.Destination?.time)
         } as TransitLeg);
       }
     }
 
-    // Get overall trip departure and arrival times
-    const firstTransitLeg = legs.find(leg => leg.type === 'transit') as any;
-    const lastTransitLeg = legs.reverse().find(leg => leg.type === 'transit') as any;
-    legs.reverse(); // restore original order
+    // Get overall trip departure and arrival times from first and last transit legs
+    const firstTransitLeg = legs.find(leg => leg.kind === 'TRANSIT') as TransitLeg;
+    const lastTransitLeg = [...legs].reverse().find(leg => leg.kind === 'TRANSIT') as TransitLeg;
     
     return {
       id: `ResRobot_${Date.now()}_${index}`,
-      legs: legs.map(leg => {
-        if (leg.type === 'walk') {
-          return {
-            kind: 'WALK',
-            fromAreaId: 'unknown',
-            toAreaId: 'unknown', 
-            durationMinutes: leg.duration || 5
-          } as WalkLeg;
-        } else {
-          return {
-            kind: 'TRANSIT',
-            duration: leg.duration || 0,
-            line: {
-              id: leg.line.id,
-              number: leg.line.number,
-              mode: leg.line.mode,
-              name: leg.line.name,
-              operatorId: leg.line.operatorId,
-              color: leg.line.color
-            },
-            journeyId: leg.line.id,
-            from: {
-              areaId: leg.from.stationId || 'unknown',
-              name: leg.from.name,
-              platform: leg.from.platform
-            },
-            to: {
-              areaId: leg.to.stationId || 'unknown', 
-              name: leg.to.name,
-              platform: leg.to.platform
-            },
-            plannedDeparture: this.formatResRobotDateTime(leg.Origin?.date, leg.Origin?.time),
-            plannedArrival: this.formatResRobotDateTime(leg.Destination?.date, leg.Destination?.time)
-          } as TransitLeg;
-        }
-      }),
-      plannedDeparture: firstTransitLeg ? this.formatResRobotDateTime(firstTransitLeg.Origin?.date, firstTransitLeg.Origin?.time) : new Date().toISOString(),
-      plannedArrival: lastTransitLeg ? this.formatResRobotDateTime(lastTransitLeg.Destination?.date, lastTransitLeg.Destination?.time) : new Date().toISOString(),
+      legs,
+      plannedDeparture: firstTransitLeg?.plannedDeparture || new Date().toISOString(),
+      plannedArrival: lastTransitLeg?.plannedArrival || new Date().toISOString(),
+      duration: this.parseDuration(resRobotTrip.duration || 'PT0H0M'),
+      emissions: { co2: 0 }
     } as Itinerary;
   }
 
