@@ -35,7 +35,7 @@ interface SLDeparture {
 export class TransitService {
   private readonly SL_JOURNEY_API = "https://journeyplanner.integration.sl.se/v2";
   private readonly SL_TRANSPORT_API = "https://transport.integration.sl.se/v1";
-  private readonly SL_REALTIME_API = "https://realtime-api.trafiklab.se/v1";
+  private readonly TRAFIKLAB_REALTIME_API = "https://realtime-api.trafiklab.se/v1";
   private cachedSites: StopArea[] = [];
   private cacheExpiry: number = 0;
   private readonly CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
