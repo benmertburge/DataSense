@@ -117,7 +117,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/departures/:areaId', isAuthenticated, async (req, res) => {
     try {
       const { areaId } = req.params;
-      const departures = await transitService.getDepartures(areaId);
+      const departures = await transitService.getRealDepartures(areaId);
       res.json(departures);
     } catch (error) {
       console.error("Error fetching departures:", error);
