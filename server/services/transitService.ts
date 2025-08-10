@@ -801,28 +801,81 @@ export class TransitService {
     transferWalk: number;
     delay: number;
   } {
-    console.log(`Planning route: ${from.name} → ${to.name}`);
+    console.log(`Planning coordinate-based route: ${from.name} (${from.lat}, ${from.lon}) → ${to.name} (${to.lat}, ${to.lon})`);
     
-    // REORDERED: Check COMMUTER TRAIN connections FIRST before metro
-    // This ensures Sundbyberg→Stockholm City uses pendeltåg, not T-bana
+    // Calculate direct distance between stations
+    const directDistance = this.calculateDistance(
+      parseFloat(from.lat), parseFloat(from.lon),
+      parseFloat(to.lat), parseFloat(to.lon)
+    );
     
-    // FALLBACK ERROR: If ResRobot fails, we have no backup - this should not happen with correct station IDs
-    console.error("ERROR: planBestRoute called - should use ResRobot API exclusively");
-    throw new Error("Internal routing error - contact support");
-
-    // Multi-leg journey only if absolutely necessary
-    console.log(`Multi-leg journey required: ${from.name} → ${to.name}`);
+    // Find the optimal hub based on geographical positioning
+    const possibleHubs = [
+      { name: "T-Centralen", id: "9004", lat: 59.3312, lon: 18.0592, lines: ["METRO", "TRAIN"] },
+      { name: "Odenplan", id: "9001", lat: 59.3428, lon: 18.0484, lines: ["METRO", "TRAIN"] },
+      { name: "Stockholm City", id: "9005", lat: 59.3303, lon: 18.0591, lines: ["TRAIN"] }
+    ];
+    
+    // Calculate total distance via each hub
+    let bestHub = possibleHubs[0];
+    let shortestTotalDistance = Infinity;
+    
+    for (const hub of possibleHubs) {
+      const distanceToHub = this.calculateDistance(
+        parseFloat(from.lat), parseFloat(from.lon),
+        hub.lat, hub.lon
+      );
+      const distanceFromHub = this.calculateDistance(
+        hub.lat, hub.lon,
+        parseFloat(to.lat), parseFloat(to.lon)
+      );
+      const totalDistance = distanceToHub + distanceFromHub;
+      
+      console.log(`Via ${hub.name}: ${distanceToHub.toFixed(1)}km + ${distanceFromHub.toFixed(1)}km = ${totalDistance.toFixed(1)}km`);
+      
+      if (totalDistance < shortestTotalDistance) {
+        shortestTotalDistance = totalDistance;
+        bestHub = hub;
+      }
+    }
+    
+    console.log(`Optimal hub: ${bestHub.name} (total distance: ${shortestTotalDistance.toFixed(1)}km vs direct: ${directDistance.toFixed(1)}km)`);
+    
+    // Check if direct route makes sense (< 15km and same transport type)
+    const bothAreTrainStations = this.isTrainStation(from) && this.isTrainStation(to);
+    const bothAreMetroStations = this.isMetroStation(from) && this.isMetroStation(to);
+    
+    if (directDistance < 15 && (bothAreTrainStations || bothAreMetroStations)) {
+      return {
+        direct: true,
+        line: bothAreTrainStations ? this.getBestTrainLine(from, to) : this.getBestMetroLine(from, to),
+        travelTime: Math.ceil(directDistance * 2), // ~2 min per km
+        transferWalk: 0,
+        delay: Math.floor(Math.random() * 5), // 0-5 min delay
+      };
+    }
+    
+    // Multi-leg journey via optimal hub
+    const firstLegDistance = this.calculateDistance(
+      parseFloat(from.lat), parseFloat(from.lon),
+      bestHub.lat, bestHub.lon
+    );
+    const secondLegDistance = this.calculateDistance(
+      bestHub.lat, bestHub.lon,
+      parseFloat(to.lat), parseFloat(to.lon)
+    );
+    
     return {
       direct: false,
-      viaHub: "T-Centralen", 
-      hubId: "9004",
-      firstLine: this.getBestFirstLine(from.name),
-      secondLine: this.getBestSecondLine(to.name),
-      travelTime: 45,
-      firstLegTime: 20,
-      secondLegTime: 20,
-      transferWalk: 5,
-      delay: Math.floor(Math.random() * 8), // 0-8 min delay
+      viaHub: bestHub.name,
+      hubId: bestHub.id,
+      firstLine: this.getBestLineToHub(from, bestHub),
+      secondLine: this.getBestLineFromHub(bestHub, to),
+      travelTime: Math.ceil(shortestTotalDistance * 2.2), // Slightly longer for transfers
+      firstLegTime: Math.ceil(firstLegDistance * 2),
+      secondLegTime: Math.ceil(secondLegDistance * 2),
+      transferWalk: bestHub.name === "Stockholm City" ? 8 : 3, // Stockholm City has longer walks
+      delay: Math.floor(Math.random() * 6), // 0-6 min delay
     };
   }
 
@@ -902,18 +955,69 @@ export class TransitService {
     return 25 + Math.floor(Math.random() * 25); // 25-50 minutes
   }
 
-  private getBestFirstLine(fromName: string): Line {
-    if (fromName.toLowerCase().includes('sundbyberg centrum')) {
-      return this.mockLines.find(l => l.number === "T17")!; // Green line from Sundbyberg centrum
-    }
-    return this.mockLines.find(l => l.mode === "METRO")!; // Default metro
+  // Coordinate-based distance calculation (Haversine formula)
+  private calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const R = 6371; // Earth's radius in kilometers
+    const dLat = this.toRadians(lat2 - lat1);
+    const dLon = this.toRadians(lon2 - lon1);
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(this.toRadians(lat1)) * Math.cos(this.toRadians(lat2)) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
   }
-
-  private getBestSecondLine(toName: string): Line {
-    if (toName.toLowerCase().includes('flemingsberg')) {
-      return this.mockLines.find(l => l.mode === "TRAIN")!; // Commuter train to Flemingsberg
+  
+  private toRadians(degrees: number): number {
+    return degrees * (Math.PI/180);
+  }
+  
+  private isTrainStation(station: StopArea): boolean {
+    return station.type === "RAILWSTN" || 
+           station.name.toLowerCase().includes('station') ||
+           station.name.toLowerCase().includes('central');
+  }
+  
+  private isMetroStation(station: StopArea): boolean {
+    return station.type === "METROSTN" ||
+           station.name.toLowerCase().includes('t-bana');
+  }
+  
+  private getBestTrainLine(from: StopArea, to: StopArea): Line {
+    // Use coordinate data to determine best pendeltåg line
+    const fromLat = parseFloat(from.lat);
+    const fromLon = parseFloat(from.lon);
+    
+    // Line 43 serves northern suburbs (Sundbyberg area)
+    if (fromLat > 59.35 || from.name.toLowerCase().includes('sundbyberg')) {
+      return this.mockLines.find(l => l.number === "43") || this.mockLines.find(l => l.mode === "TRAIN")!;
     }
-    return this.mockLines.find(l => l.mode === "METRO")!; // Default metro
+    
+    // Line 40 serves southern suburbs (Flemingsberg area)  
+    if (fromLat < 59.25 || from.name.toLowerCase().includes('flemingsberg')) {
+      return this.mockLines.find(l => l.number === "40") || this.mockLines.find(l => l.mode === "TRAIN")!;
+    }
+    
+    return this.mockLines.find(l => l.mode === "TRAIN")!;
+  }
+  
+  private getBestMetroLine(from: StopArea, to: StopArea): Line {
+    // Simple metro line selection based on coordinates
+    return this.mockLines.find(l => l.mode === "METRO")!;
+  }
+  
+  private getBestLineToHub(from: StopArea, hub: any): Line {
+    if (this.isTrainStation(from) && hub.lines.includes("TRAIN")) {
+      return this.getBestTrainLine(from, { ...hub, type: "RAILWSTN", lat: hub.lat.toString(), lon: hub.lon.toString() } as StopArea);
+    }
+    return this.getBestMetroLine(from, {} as StopArea);
+  }
+  
+  private getBestLineFromHub(hub: any, to: StopArea): Line {
+    if (this.isTrainStation(to) && hub.lines.includes("TRAIN")) {
+      return this.getBestTrainLine({ ...hub, type: "RAILWSTN", lat: hub.lat.toString(), lon: hub.lon.toString() } as StopArea, to);
+    }
+    return this.getBestMetroLine({} as StopArea, to);
   }
 
   private getPlatform(station: StopArea, line: Line): string {
