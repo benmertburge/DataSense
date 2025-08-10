@@ -60,6 +60,7 @@ export const lines = pgTable("lines", {
   mode: varchar("mode", { enum: ["BUS", "METRO", "TRAIN", "TRAM", "FERRY"] }).notNull(),
   name: varchar("name"),
   operatorId: varchar("operator_id"),
+  color: varchar("color"),
 });
 
 export const savedRoutes = pgTable("saved_routes", {
@@ -146,7 +147,6 @@ export const insertCompensationCaseSchema = createInsertSchema(compensationCases
 export const journeyPlannerSchema = z.object({
   from: z.string().min(1, "Origin is required"),
   to: z.string().min(1, "Destination is required"),
-  via: z.string().optional(),
   date: z.string(),
   time: z.string(),
   leaveAt: z.boolean().default(true),

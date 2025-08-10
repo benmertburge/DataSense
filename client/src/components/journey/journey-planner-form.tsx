@@ -36,7 +36,6 @@ export default function JourneyPlannerForm() {
     defaultValues: {
       from: '',
       to: '',
-      via: '',
       date: new Date().toISOString().split('T')[0],
       time: '08:30',
       leaveAt: true,
@@ -113,9 +112,6 @@ export default function JourneyPlannerForm() {
   const selectSavedRoute = (route: any) => {
     form.setValue('from', route.originAreaId);
     form.setValue('to', route.destinationAreaId);
-    if (route.viaAreaId) {
-      form.setValue('via', route.viaAreaId);
-    }
     if (route.preferredDepartureTime) {
       form.setValue('time', route.preferredDepartureTime);
     }
@@ -266,50 +262,7 @@ export default function JourneyPlannerForm() {
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="via"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Via (optional)</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                        </div>
-                        <Input
-                          {...field}
-                          placeholder="T-Centralen"
-                          className="pl-8 pr-10"
-                        />
-                        <MapPin className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
 
-              <FormField
-                control={form.control}
-                name="via"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Via (optional)</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <Plus className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <Input
-                          {...field}
-                          placeholder="Add via stop"
-                          className="pl-8"
-                        />
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
 
               <div className="grid grid-cols-2 gap-3">
                 <FormField

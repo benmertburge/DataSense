@@ -632,13 +632,13 @@ export class TransitService {
           journeyId: leg.JourneyDetailRef?.ref || `J_${Date.now()}`,
           directionText: leg.direction || toStation.name,
           from: {
-            areaId: leg.Origin?.id || fromStation.id,
-            name: leg.Origin?.name || fromStation.name,
+            areaId: leg.Origin?.extId || leg.Origin?.id || fromStation.id,
+            name: this.cleanStationName(leg.Origin?.name || fromStation.name),
             platform: leg.Origin?.track || "1"
           },
           to: {
-            areaId: leg.Destination?.id || toStation.id,
-            name: leg.Destination?.name || toStation.name,
+            areaId: leg.Destination?.extId || leg.Destination?.id || toStation.id,
+            name: this.cleanStationName(leg.Destination?.name || toStation.name),
             platform: leg.Destination?.track || "1"
           },
           plannedDeparture: leg.Origin?.date + 'T' + leg.Origin?.time,
@@ -677,7 +677,7 @@ export class TransitService {
   }
 
   private convertResRobotLine(leg: any): Line {
-    // FIX: Extract REAL data from ResRobot Product array
+    // Extract REAL data from ResRobot Product
     const product = Array.isArray(leg.Product) ? leg.Product[0] : leg.Product;
     
     if (!product) {
@@ -691,43 +691,55 @@ export class TransitService {
     }
     
     const lineNumber = product.num || product.displayNumber || product.line || "?";
-    const operatorName = product.operatorInfo?.name || product.operator || "SL";
-    const transportCategory = product.catOut || product.catIn || "JLT";
+    const transportCategory = product.catOut || product.catIn || "";
+    const productName = product.name || "";
     
-    // Parse REAL Swedish transport names from ResRobot
-    let lineName = product.name || product.internalName || "";
-    
-    // Clean up the line name for display
-    if (lineName.includes("Länstrafik - Tåg")) {
-      lineName = `Pendeltåg ${lineNumber}`;
-    } else if (lineName.includes("T-bana")) {
-      lineName = `T${lineNumber}`;
-    } else if (!lineName || lineName === "Unknown") {
-      lineName = `${operatorName} ${lineNumber}`;
-    }
-    
-    // Determine transport mode from ResRobot categories
+    // Determine transport mode and create clean display name
     let mode: "METRO" | "BUS" | "TRAIN" | "TRAM" | "FERRY" = "BUS";
+    let displayName = "";
+    let color = "#666666";
     
-    if (transportCategory === "JLT" || lineName.includes("Pendeltåg") || lineName.includes("Länstrafik")) {
+    if (productName.includes("Spårväg") || transportCategory === "JSP") {
+      mode = "TRAM";
+      displayName = `Länstrafik - Spårväg ${lineNumber}`;
+      color = "#00A651"; // Green for trams
+    } else if (productName.includes("Pendeltåg") || productName.includes("Länstrafik - Tåg") || transportCategory === "JLT") {
       mode = "TRAIN";
-    } else if (transportCategory === "JTB" || lineName.includes("T-bana")) {
+      displayName = `Pendeltåg ${lineNumber}`;
+      color = "#9B59B6"; // Purple for pendeltåg
+    } else if (productName.includes("T-bana") || transportCategory === "JTB") {
       mode = "METRO";
+      displayName = `T${lineNumber}`;
+      // T-bana colors by line
+      if (lineNumber === "17" || lineNumber === "18" || lineNumber === "19") color = "#00A651"; // Green
+      else if (lineNumber === "13" || lineNumber === "14") color = "#E3000F"; // Red
+      else color = "#0089CA"; // Blue
     } else if (transportCategory === "JBU") {
       mode = "BUS";
-    } else if (transportCategory === "JSP") {
-      mode = "TRAM";
-    } else if (transportCategory === "JSH") {
-      mode = "FERRY";
+      displayName = `Buss ${lineNumber}`;
+      color = "#E3000F"; // Red for buses
+    } else {
+      displayName = `${productName} ${lineNumber}`.trim();
     }
 
     return {
       id: product.lineId || `L_${lineNumber}`,
       number: lineNumber,
       mode,
-      name: lineName,
-      operatorId: operatorName
+      name: displayName,
+      operatorId: "SL",
+      color
     };
+  }
+
+  private cleanStationName(name: string): string {
+    // Remove unnecessary location info from station names
+    return name
+      .replace(/\s*\([^)]*kn\)/, '') // Remove "(Stockholm kn)" etc
+      .replace(/\s+T-bana.*$/, '') // Remove "T-bana" suffix
+      .replace(/\s+station.*$/, '') // Remove "station" suffix
+      .replace(/\s+Spårv.*$/, '') // Remove "Spårv" suffix
+      .trim();
   }
 
   private planBestRoute(from: StopArea, to: StopArea): {
