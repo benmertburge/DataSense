@@ -35,7 +35,7 @@ interface SLDeparture {
 export class TransitService {
   private readonly SL_JOURNEY_API = "https://journeyplanner.integration.sl.se/v2";
   private readonly SL_TRANSPORT_API = "https://transport.integration.sl.se/v1";
-  private readonly SL_REALTIME_API = "https://realtime-api.trafiklab.se/v1";
+  private readonly SL_REALTIME_API = "https://api.sl.se/api2";
   private cachedSites: StopArea[] = [];
   private cacheExpiry: number = 0;
   private readonly CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
@@ -1787,9 +1787,8 @@ export class TransitService {
   // Get real-time departures using Trafiklab Timetables API
   async getDepartures(areaId: string, dateTime?: Date): Promise<Departure[]> {
     try {
-      // Use Trafiklab Timetables API for real departure data
-      const timeParam = dateTime ? this.formatTrafilabTime(dateTime) : '';
-      const url = `${this.SL_REALTIME_API}/departures/${areaId}${timeParam}?key=${process.env.TRAFIKLAB_API_KEY}`;
+      // Use SL Real-time API for real departure data
+      const url = `${this.SL_REALTIME_API}/realtimedeparturesV4.json?key=${process.env.TRAFIKLAB_API_KEY}&siteid=${areaId}&timewindow=60`;
       
       console.log(`Fetching real departures from: ${url}`);
       
@@ -1800,33 +1799,64 @@ export class TransitService {
       }
       
       const data = await response.json();
-      console.log(`Trafiklab returned ${data.departures?.length || 0} departures`);
+      console.log(`SL Real-time API response:`, JSON.stringify(data, null, 2).substring(0, 500));
       
-      if (!data.departures || !Array.isArray(data.departures)) {
+      // Handle SL API error response
+      if (data.StatusCode !== 0) {
+        console.log(`SL API error: ${data.Message}`);
         return this.getFallbackDepartures(areaId);
       }
       
-      // Convert Trafiklab departures to our format with real-time data
-      const realDepartures = data.departures.slice(0, 10).map((dep: any, index: number) => ({
+      // Parse all transport modes from SL API response
+      let allDepartures: any[] = [];
+      
+      // Metros
+      if (data.ResponseData?.Metros) {
+        allDepartures = allDepartures.concat(data.ResponseData.Metros);
+      }
+      
+      // Buses
+      if (data.ResponseData?.Buses) {
+        allDepartures = allDepartures.concat(data.ResponseData.Buses);
+      }
+      
+      // Trains  
+      if (data.ResponseData?.Trains) {
+        allDepartures = allDepartures.concat(data.ResponseData.Trains);
+      }
+      
+      // Trams
+      if (data.ResponseData?.Trams) {
+        allDepartures = allDepartures.concat(data.ResponseData.Trams);
+      }
+      
+      console.log(`SL API returned ${allDepartures.length} total departures`);
+      
+      if (allDepartures.length === 0) {
+        return this.getFallbackDepartures(areaId);
+      }
+      
+      // Convert SL real-time departures to our format
+      const realDepartures = allDepartures.slice(0, 10).map((dep: any, index: number) => ({
         stopAreaId: areaId,
         line: {
-          id: `TL_${dep.route?.designation || 'unknown'}`,
-          number: dep.route?.designation || dep.route?.name || 'Unknown',
-          mode: this.mapTransportMode(dep.route?.transport_mode),
-          name: dep.route?.name || dep.route?.designation || 'Unknown Line',
-          operatorId: dep.agency?.name || 'Unknown',
-          color: this.getLineColor(dep.route?.transport_mode, dep.route?.designation)
+          id: `SL_${dep.LineNumber || 'unknown'}`,
+          number: dep.LineNumber || 'Unknown',
+          mode: this.mapSLTransportMode(dep.TransportMode),
+          name: dep.Destination || 'Unknown Line',
+          operatorId: 'SL',
+          color: this.getLineColor(dep.TransportMode, dep.LineNumber)
         },
-        journeyId: `TL_${dep.trip?.trip_id || Date.now()}_${index}`,
-        directionText: dep.route?.direction || dep.route?.destination?.name || 'Unknown Direction',
-        plannedTime: dep.scheduled,
-        expectedTime: dep.realtime || dep.scheduled,
-        state: dep.canceled ? "CANCELLED" : (dep.delay > 0 ? "EXPECTED" : "NORMALPROGRESS"),
-        platform: dep.scheduled_platform?.designation || dep.realtime_platform?.designation || 'Unknown',
-        delayMinutes: Math.floor((dep.delay || 0) / 60) // Convert seconds to minutes
+        journeyId: `SL_${dep.JourneyNumber || Date.now()}_${index}`,
+        directionText: dep.Destination || 'Unknown Direction',
+        plannedTime: dep.TimeTabledDateTime,
+        expectedTime: dep.ExpectedDateTime,
+        state: dep.JourneyDirection === 0 ? "NORMALPROGRESS" : "EXPECTED",
+        platform: dep.StopPointDesignation || 'Unknown',
+        delayMinutes: 0 // SL doesn't provide delay in minutes directly
       }));
       
-      console.log(`Trafiklab Timetables API returned ${realDepartures.length} real departures with live data`);
+      console.log(`SL Real-time API returned ${realDepartures.length} real departures`);
       return realDepartures;
       
     } catch (error) {
@@ -1853,6 +1883,15 @@ export class TransitService {
     return `/${date}T${time}`;
   }
   
+  private mapSLTransportMode(mode: string): "METRO" | "BUS" | "TRAIN" | "TRAM" {
+    if (!mode) return "BUS";
+    const modeStr = mode.toString();
+    if (modeStr === "METRO") return "METRO";
+    if (modeStr === "TRAIN") return "TRAIN";
+    if (modeStr === "TRAM") return "TRAM";
+    return "BUS";
+  }
+
   private mapTransportMode(mode: string): "METRO" | "TRAIN" | "BUS" | "TRAM" | "FERRY" {
     if (!mode) return "BUS";
     
