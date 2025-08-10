@@ -832,14 +832,15 @@ export class TransitService {
   }
 
   // NEW SL Journey Planner API functions
-  // Enhanced search using BOTH SL Journey Planner AND Trafiklab Timetables
+  // CORRECT API USAGE: SL Journey Planner for routes + Trafiklab Timetables for real-time
   async searchRoutesWithSL(from: string, to: string, dateTime: Date, searchType: 'departure' | 'arrival'): Promise<{
     best: Itinerary;
     alternatives: Itinerary[];
   }> {
     try {
-      console.log(`DUAL API SEARCH: SL Journey Planner + Trafiklab Timetables`);
-      console.log(`Starting search: ${from} → ${to} at ${dateTime.toISOString()}`);
+      console.log(`ROUTE PLANNING: Using SL Journey Planner for route structure`);
+      console.log(`REAL-TIME DATA: Will use Trafiklab Timetables for actual departure times`);
+      console.log(`Search: ${from} → ${to}`);
 
       // Search for SL stations first using SL API
       const [fromSites, toSites] = await Promise.all([
@@ -879,16 +880,13 @@ export class TransitService {
             }
           });
           
-          // SIMPLE TIME FIX: Use the Stockholm local time directly - no conversion needed
-          const slDate = `${dateTime.getFullYear()}-${String(dateTime.getMonth() + 1).padStart(2, '0')}-${String(dateTime.getDate()).padStart(2, '0')}`;
-          const slTime = `${String(dateTime.getHours()).padStart(2, '0')}:${String(dateTime.getMinutes()).padStart(2, '0')}`;
+          // SL Journey Planner: Get route structure without time constraints
+          // Don't send specific time - just get the route options
+          console.log(`SL Journey Planner: Getting route structure (no time constraints)`);
           
-          console.log(`TIMEZONE DEBUG: Input dateTime object: ${dateTime.toString()}`);
-          console.log(`TIMEZONE DEBUG: getHours(): ${dateTime.getHours()}, getMinutes(): ${dateTime.getMinutes()}`);
-          console.log(`TIMEZONE DEBUG: Formatted for SL API: ${slDate} ${slTime}`);
-          
-          queryParams.append('date', slDate);
-          queryParams.append('time', slTime);
+          // Remove time-based parameters for route planning
+          // queryParams.append('date', slDate);
+          // queryParams.append('time', slTime);
           
           if (searchType === 'arrival') {
             queryParams.append('searchForArrival', '1');
@@ -954,20 +952,77 @@ export class TransitService {
       
       console.log(`Found ${uniqueJourneys.length} unique SL journeys after deduplication`);
 
-      // Convert SL journeys to our Itinerary format
-      const convertedTrips = uniqueJourneys.slice(0, 3).map((journey: any, index: number) => 
+      // Convert SL route structure to our format
+      const routeStructures = uniqueJourneys.slice(0, 3).map((journey: any, index: number) => 
         this.convertSLToItinerary(journey, fromStation, toStation, index === 0 ? 'main' : `alt_${index}`)
       );
 
+      // Enhance with real-time data from Trafiklab Timetables API
+      console.log(`ENHANCING: Adding real-time departure data from Trafiklab Timetables`);
+      const enhancedRoutes = await this.enhanceRoutesWithRealtimeData(routeStructures, dateTime, searchType);
+
       return {
-        best: convertedTrips[0],
-        alternatives: convertedTrips.slice(1)
+        best: enhancedRoutes[0],
+        alternatives: enhancedRoutes.slice(1)
       };
 
     } catch (error) {
       console.error("SL Journey Planner failed - NO FALLBACK:", error);
       throw new Error("SL routing unavailable - please try again later");
     }
+  }
+
+  // Enhance route structures with real-time departure data from Trafiklab Timetables
+  async enhanceRoutesWithRealtimeData(routes: Itinerary[], userDateTime: Date, searchType: 'departure' | 'arrival'): Promise<Itinerary[]> {
+    console.log(`REAL-TIME ENHANCEMENT: Processing ${routes.length} routes with Trafiklab Timetables API`);
+    
+    const enhanced = await Promise.all(routes.map(async (route) => {
+      const enhancedLegs = await Promise.all(route.legs.map(async (leg) => {
+        if (leg.kind === 'TRANSIT') {
+          try {
+            // Get real-time departures for this stop from Trafiklab Timetables
+            console.log(`Getting real-time data for ${leg.from.name} (${leg.from.areaId})`);
+            const realtimeDepartures = await this.getDepartures(leg.from.areaId, userDateTime);
+            
+            // Find matching departure by line number and direction
+            const matchingDeparture = realtimeDepartures.find(dep => {
+              const lineMatch = dep.line.number === leg.line.number;
+              const directionMatch = dep.directionText.includes(leg.directionText) || 
+                                   leg.directionText.includes(dep.directionText);
+              
+              // For departure search, find next departure after user's requested time
+              if (searchType === 'departure') {
+                const depTime = new Date(dep.plannedTime);
+                return lineMatch && depTime >= userDateTime;
+              } else {
+                // For arrival search, work backwards from desired arrival time
+                return lineMatch && directionMatch;
+              }
+            });
+            
+            if (matchingDeparture) {
+              console.log(`REAL-TIME MATCH: ${leg.line.number} at ${leg.from.name} → ${matchingDeparture.expectedTime}`);
+              return {
+                ...leg,
+                plannedDeparture: matchingDeparture.plannedTime,
+                expectedDeparture: matchingDeparture.expectedTime,
+                delayMinutes: matchingDeparture.delayMinutes || 0
+              };
+            } else {
+              console.log(`NO REAL-TIME MATCH: Using route structure times for ${leg.line.number}`);
+            }
+          } catch (error) {
+            console.log(`Real-time data unavailable for ${leg.from.areaId}:`, error);
+          }
+        }
+        return leg;
+      }));
+      
+      return { ...route, legs: enhancedLegs };
+    }));
+    
+    console.log(`DUAL API SUCCESS: Enhanced routes with real-time departure data`);
+    return enhanced;
   }
 
   async searchSLStops(query: string): Promise<StopArea[]> {
