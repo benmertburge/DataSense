@@ -263,8 +263,15 @@ export class TransitService {
         if (leg.kind === 'TRANSIT') {
           // Get real-time departures for this leg's origin station
           try {
-            // Use stored station ID from ResRobot data
-            const stationId = leg.from.areaId !== 'unknown' ? leg.from.areaId : await this.findStationIdByName(leg.from.name);
+            // Use simple station ID format for Trafiklab - extract just the numeric ID
+            let stationId = leg.from.areaId !== 'unknown' ? leg.from.areaId : await this.findStationIdByName(leg.from.name);
+            
+            // Clean up station ID for Trafiklab API - extract numeric part only
+            if (stationId && stationId.includes('@')) {
+              // Extract numeric ID from ResRobot format like "A=1@O=Sundbyberg station@X=17970938@Y=59361032@U=1@L=740000773@"
+              const match = stationId.match(/L=(\d+)/);
+              stationId = match ? match[1] : stationId;
+            }
             if (stationId) {
               const realTimeData = await this.getRealTimeDeparturesFromTrafiklab(stationId, leg.plannedDeparture);
               

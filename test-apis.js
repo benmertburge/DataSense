@@ -1,11 +1,33 @@
 // Test script to verify both APIs work
 const testResRobotAPI = async () => {
-  // Test different ResRobot endpoint formats from the documentation
-  const formats = [
-    `https://api.resrobot.se/v2.1/trip?originId=740000773&destId=740000031&format=json&accessId=${process.env.RESROBOT_API_KEY}`,
-    `https://api.resrobot.se/v2.1/trip.json?originId=740000773&destId=740000031&accessId=${process.env.RESROBOT_API_KEY}`,
-    `https://api.resrobot.se/v2.1/trip?originExtId=740000773&destExtId=740000031&format=json&accessId=${process.env.RESROBOT_API_KEY}`
-  ];
+  // Use the correct ResRobot API key format from documentation
+  const correctKey = '599505c8-7155-4603-b352-4d31a4d2537b';
+  const url = `https://api.resrobot.se/v2.1/trip?format=json&originId=740000773&destId=740000031&accessId=${correctKey}&numF=3&passlist=true`;
+  console.log('Testing ResRobot with correct key format...');
+  
+  try {
+    const response = await fetch(url);
+    console.log(`ResRobot Status: ${response.status}`);
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log(`SUCCESS! ResRobot trips found: ${data.Trip?.length || 0}`);
+      if (data.Trip?.[0]) {
+        const trip = data.Trip[0];
+        console.log(`First trip legs: ${trip.LegList?.Leg?.length || 0}`);
+        if (trip.LegList?.Leg?.[0]) {
+          const leg = trip.LegList.Leg[0];
+          console.log(`First leg: ${leg.Origin?.name} -> ${leg.Destination?.name}`);
+          console.log(`Times: ${leg.Origin?.time} - ${leg.Destination?.time}`);
+        }
+      }
+    } else {
+      const text = await response.text();
+      console.log(`ResRobot Error: ${text.slice(0, 300)}`);
+    }
+  } catch (error) {
+    console.log(`ResRobot Fetch Error: ${error.message}`);
+  }
   
   for (let i = 0; i < formats.length; i++) {
     console.log(`\nTesting ResRobot format ${i + 1}:`);
