@@ -285,26 +285,37 @@ export class TransitService {
               stationId = match ? match[1] : stationId;
             }
             if (stationId) {
+              // Get both real-time data and platform information from Trafiklab Timetables
               const realTimeData = await this.getRealTimeDeparturesFromTrafiklab(stationId, leg.plannedDeparture);
-              
-              // Find matching departure by line number and planned time
               const matchingDeparture = this.findMatchingDeparture(realTimeData, leg.line.number, leg.plannedDeparture);
               
-              if (matchingDeparture) {
-                enhancedLegs.push({
-                  ...leg,
-                  actualDeparture: matchingDeparture.realtime || matchingDeparture.scheduled,
-                  actualArrival: this.addMinutesToTime(matchingDeparture.realtime || matchingDeparture.scheduled, leg.duration),
-                  delay: matchingDeparture.delay || 0,
-                  realTimeData: {
-                    hasRealTimeData: matchingDeparture.is_realtime || false,
-                    delay: matchingDeparture.delay || 0,
-                    canceled: matchingDeparture.canceled || false
-                  }
-                });
-              } else {
-                enhancedLegs.push(leg);
-              }
+              // Extract platform info from the same API response
+              const platformInfo = matchingDeparture ? {
+                departureTrack: matchingDeparture.realtime_platform?.designation || 
+                               matchingDeparture.scheduled_platform?.designation,
+                arrivalTrack: matchingDeparture.realtime_platform?.designation || 
+                             matchingDeparture.scheduled_platform?.designation
+              } : null;
+              
+              enhancedLegs.push({
+                ...leg,
+                from: {
+                  ...leg.from,
+                  platform: platformInfo?.departureTrack || undefined
+                },
+                to: {
+                  ...leg.to,
+                  platform: platformInfo?.arrivalTrack || undefined
+                },
+                actualDeparture: matchingDeparture?.realtime || matchingDeparture?.scheduled,
+                actualArrival: matchingDeparture ? this.addMinutesToTime(matchingDeparture.realtime || matchingDeparture.scheduled, leg.duration) : undefined,
+                delay: matchingDeparture?.delay || 0,
+                realTimeData: {
+                  hasRealTimeData: matchingDeparture?.is_realtime || false,
+                  delay: matchingDeparture?.delay || 0,
+                  canceled: matchingDeparture?.canceled || false
+                }
+              });
             } else {
               enhancedLegs.push(leg);
             }
@@ -347,9 +358,9 @@ export class TransitService {
     // Format time for Trafiklab API (YYYY-MM-DDTHH:mm)
     const timeParam = new Date(plannedTime).toISOString().slice(0, 16);
     
-    // Use correct Trafiklab API format: /v1/departures/{area id}/{time}?key={key}
+    // Use Trafiklab Timetables API for both real-time and platform information
     const url = `https://realtime-api.trafiklab.se/v1/departures/${stationId}/${timeParam}?key=${apiKey}`;
-    console.log(`Fetching Trafiklab real-time departures: ${url.replace(apiKey, 'API_KEY_HIDDEN')}`);
+    console.log(`Fetching Trafiklab departures with platform info: ${url.replace(apiKey, 'API_KEY_HIDDEN')}`);
     
     const response = await fetch(url);
     if (!response.ok) {
@@ -358,6 +369,34 @@ export class TransitService {
 
     const data = await response.json();
     return data.departures || [];
+  }
+
+  private async getPlatformInfoFromTrafiklab(stationId: string, lineNumber: string, plannedTime: string): Promise<{departureTrack?: string, arrivalTrack?: string} | null> {
+    try {
+      const departures = await this.getRealTimeDeparturesFromTrafiklab(stationId, plannedTime);
+      
+      // Find departure matching our line number
+      const matchingDeparture = departures.find(dep => 
+        dep.route?.designation === lineNumber || 
+        dep.route?.name?.includes(lineNumber)
+      );
+      
+      if (matchingDeparture) {
+        const platform = matchingDeparture.realtime_platform?.designation || 
+                        matchingDeparture.scheduled_platform?.designation;
+        
+        console.log(`PLATFORM FOUND: Line ${lineNumber} at station ${stationId} uses platform ${platform}`);
+        return {
+          departureTrack: platform,
+          arrivalTrack: platform // Same platform for departure and arrival at a station
+        };
+      }
+      
+      return null;
+    } catch (error) {
+      console.error(`Failed to get platform info: ${error}`);
+      return null;
+    }
   }
 
   private findMatchingDeparture(realTimeData: any[], lineNumber: string, plannedTime: string): any | null {

@@ -134,7 +134,13 @@ export default function AlternativeRoutes() {
                       <span className="text-xs text-gray-500">
                         {leg.from?.name || 'Unknown'} → {leg.to?.name || 'Unknown'}
                       </span>
-                      {/* Platform info not available from ResRobot Trip API */}
+                      {(leg.from?.platform || leg.to?.platform) && (
+                        <span className="text-xs text-blue-600">
+                          {leg.from?.platform && `Platform ${leg.from.platform}`}
+                          {leg.from?.platform && leg.to?.platform && ' → '}
+                          {leg.to?.platform && `Platform ${leg.to.platform}`}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="text-right text-xs">
