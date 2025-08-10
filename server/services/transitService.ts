@@ -38,9 +38,18 @@ export class TransitService {
 
   private mockLines: Line[] = [
     { id: "L1", number: "10", mode: "METRO", name: "Blue Line", operatorId: "SL" },
-    { id: "L2", number: "AE", mode: "TRAIN", name: "Arlanda Express", operatorId: "AE" },
-    { id: "L3", number: "43", mode: "BUS", name: "Bus 43", operatorId: "SL" },
-    { id: "L4", number: "583", mode: "BUS", name: "Airport Bus 583", operatorId: "SL" },
+    { id: "L2", number: "11", mode: "METRO", name: "Blue Line", operatorId: "SL" },
+    { id: "L3", number: "13", mode: "METRO", name: "Red Line", operatorId: "SL" },
+    { id: "L4", number: "14", mode: "METRO", name: "Red Line", operatorId: "SL" },
+    { id: "L5", number: "17", mode: "METRO", name: "Green Line", operatorId: "SL" },
+    { id: "L6", number: "18", mode: "METRO", name: "Green Line", operatorId: "SL" },
+    { id: "L7", number: "19", mode: "METRO", name: "Green Line", operatorId: "SL" },
+    { id: "L8", number: "35", mode: "TRAIN", name: "Commuter Train", operatorId: "SL" },
+    { id: "L9", number: "36", mode: "TRAIN", name: "Commuter Train", operatorId: "SL" },
+    { id: "L10", number: "38", mode: "TRAIN", name: "Commuter Train", operatorId: "SL" },
+    { id: "L11", number: "AE", mode: "TRAIN", name: "Arlanda Express", operatorId: "AE" },
+    { id: "L12", number: "43", mode: "BUS", name: "Bus 43", operatorId: "SL" },
+    { id: "L13", number: "583", mode: "BUS", name: "Airport Bus 583", operatorId: "SL" },
   ];
 
   async searchRoutes(from: string, to: string, via?: string, dateTime?: Date): Promise<{
@@ -77,65 +86,70 @@ export class TransitService {
     const legs: Leg[] = [];
     let currentTime = new Date(baseTime);
 
-    if (type === "direct" && to.name.includes("Arlanda")) {
-      // Direct bus route
+    // Determine the best route based on actual stations
+    const route = this.planBestRoute(from, to);
+    let timeOffset = type === "fast" ? 5 : type === "direct" ? 10 : 0; // Offset for different route types
+    
+    if (route.direct) {
+      // Direct route (same line or walking distance)
       const transitLeg: TransitLeg = {
         kind: "TRANSIT",
-        line: this.mockLines.find(l => l.number === "583")!,
-        journeyId: `J_${Date.now()}_583`,
-        directionText: "Arlanda Airport",
-        from: { areaId: from.id, name: from.name, platform: "C" },
-        to: { areaId: to.id, name: to.name, platform: "Terminal 5" },
-        plannedDeparture: currentTime.toISOString(),
-        plannedArrival: new Date(currentTime.getTime() + 45 * 60000).toISOString(),
-        expectedDeparture: new Date(currentTime.getTime() + 2 * 60000).toISOString(), // 2 min delay
-        expectedArrival: new Date(currentTime.getTime() + 47 * 60000).toISOString(),
+        line: route.line!,
+        journeyId: `J_${Date.now()}_${route.line!.number}`,
+        directionText: to.name,
+        from: { areaId: from.id, name: from.name, platform: this.getPlatform(from, route.line!) },
+        to: { areaId: to.id, name: to.name, platform: this.getPlatform(to, route.line!) },
+        plannedDeparture: new Date(currentTime.getTime() + timeOffset * 60000).toISOString(),
+        plannedArrival: new Date(currentTime.getTime() + (route.travelTime + timeOffset) * 60000).toISOString(),
+        expectedDeparture: new Date(currentTime.getTime() + (timeOffset + route.delay) * 60000).toISOString(),
+        expectedArrival: new Date(currentTime.getTime() + (route.travelTime + timeOffset + route.delay) * 60000).toISOString(),
       };
       legs.push(transitLeg);
-    } else {
-      // Multi-leg journey
-      // First leg: Metro
-      const metroLeg: TransitLeg = {
+    } else if (route.viaHub) {
+      // Multi-leg journey via T-Centralen or another hub
+      // First leg
+      const firstLeg: TransitLeg = {
         kind: "TRANSIT",
-        line: this.mockLines.find(l => l.number === "10")!,
-        journeyId: `J_${Date.now()}_METRO`,
-        directionText: "Kungsträdgården",
-        from: { areaId: from.id, name: from.name, platform: "2" },
-        to: { areaId: "9003", name: "Kungsträdgården", platform: type === "main" ? "3" : "2" },
-        plannedDeparture: currentTime.toISOString(),
-        plannedArrival: new Date(currentTime.getTime() + 15 * 60000).toISOString(),
-        expectedDeparture: new Date(currentTime.getTime() + 5 * 60000).toISOString(), // 5 min delay
-        expectedArrival: new Date(currentTime.getTime() + 20 * 60000).toISOString(),
-        platformChange: type === "main", // Platform change for main route
+        line: route.firstLine!,
+        journeyId: `J_${Date.now()}_${route.firstLine!.number}`,
+        directionText: route.viaHub,
+        from: { areaId: from.id, name: from.name, platform: this.getPlatform(from, route.firstLine!) },
+        to: { areaId: route.hubId!, name: route.viaHub, platform: this.getPlatform({ id: route.hubId! } as StopArea, route.firstLine!) },
+        plannedDeparture: new Date(currentTime.getTime() + timeOffset * 60000).toISOString(),
+        plannedArrival: new Date(currentTime.getTime() + (route.firstLegTime + timeOffset) * 60000).toISOString(),
+        expectedDeparture: new Date(currentTime.getTime() + (timeOffset + route.delay) * 60000).toISOString(),
+        expectedArrival: new Date(currentTime.getTime() + (route.firstLegTime + timeOffset + route.delay) * 60000).toISOString(),
+        platformChange: type === "main",
       };
-      legs.push(metroLeg);
+      legs.push(firstLeg);
 
-      // Transfer walk
-      currentTime = new Date(currentTime.getTime() + 20 * 60000);
-      const walkLeg: WalkLeg = {
-        kind: "WALK",
-        fromAreaId: "9003",
-        toAreaId: "9005",
-        durationMinutes: 3,
-        meters: 200,
-      };
-      legs.push(walkLeg);
+      // Transfer walk if needed
+      if (route.transferWalk > 0) {
+        const walkLeg: WalkLeg = {
+          kind: "WALK",
+          fromAreaId: route.hubId!,
+          toAreaId: route.hubId!,
+          durationMinutes: route.transferWalk,
+          meters: route.transferWalk * 80, // ~80m per minute walking
+        };
+        legs.push(walkLeg);
+      }
 
-      // Second leg: Train to airport
-      currentTime = new Date(currentTime.getTime() + 3 * 60000);
-      const trainLeg: TransitLeg = {
+      // Second leg
+      currentTime = new Date(currentTime.getTime() + (route.firstLegTime + route.transferWalk + timeOffset + route.delay) * 60000);
+      const secondLeg: TransitLeg = {
         kind: "TRANSIT",
-        line: this.mockLines.find(l => l.number === "AE")!,
-        journeyId: `J_${Date.now()}_AE`,
-        directionText: "Arlanda Airport",
-        from: { areaId: "9005", name: "Stockholm Central", platform: "1" },
-        to: { areaId: to.id, name: to.name, platform: "Terminal 5" },
-        plannedDeparture: new Date(currentTime.getTime() + 12 * 60000).toISOString(),
-        plannedArrival: new Date(currentTime.getTime() + 32 * 60000).toISOString(),
-        expectedDeparture: new Date(currentTime.getTime() + 12 * 60000).toISOString(), // On time
-        expectedArrival: new Date(currentTime.getTime() + 32 * 60000).toISOString(),
+        line: route.secondLine!,
+        journeyId: `J_${Date.now()}_${route.secondLine!.number}`,
+        directionText: to.name,
+        from: { areaId: route.hubId!, name: route.viaHub!, platform: this.getPlatform({ id: route.hubId! } as StopArea, route.secondLine!) },
+        to: { areaId: to.id, name: to.name, platform: this.getPlatform(to, route.secondLine!) },
+        plannedDeparture: new Date(currentTime.getTime() + 2 * 60000).toISOString(), // 2 min connection time
+        plannedArrival: new Date(currentTime.getTime() + (route.secondLegTime + 2) * 60000).toISOString(),
+        expectedDeparture: new Date(currentTime.getTime() + 2 * 60000).toISOString(), // On time for second leg
+        expectedArrival: new Date(currentTime.getTime() + (route.secondLegTime + 2) * 60000).toISOString(),
       };
-      legs.push(trainLeg);
+      legs.push(secondLeg);
     }
 
     const plannedDeparture = legs[0].kind === "TRANSIT" ? legs[0].plannedDeparture : baseTime.toISOString();
@@ -146,8 +160,7 @@ export class TransitService {
     const expectedDeparture = legs[0].kind === "TRANSIT" && legs[0].expectedDeparture ? 
       legs[0].expectedDeparture : plannedDeparture;
     const expectedArrival = legs[legs.length - 1].kind === "TRANSIT" && legs[legs.length - 1].expectedArrival ? 
-      legs[legs.length - 1].expectedArrival : 
-      new Date(baseTime.getTime() + 47 * 60000).toISOString();
+      legs[legs.length - 1].expectedArrival : plannedArrival;
 
     const delayMinutes = Math.round((new Date(expectedArrival).getTime() - new Date(plannedArrival).getTime()) / 60000);
 
@@ -160,6 +173,77 @@ export class TransitService {
       expectedArrival,
       delayMinutes,
     };
+  }
+
+  private planBestRoute(from: StopArea, to: StopArea): {
+    direct: boolean;
+    viaHub?: string;
+    hubId?: string;
+    line?: Line;
+    firstLine?: Line;
+    secondLine?: Line;
+    travelTime: number;
+    firstLegTime?: number;
+    secondLegTime?: number;
+    transferWalk: number;
+    delay: number;
+  } {
+    // For Sundbyberg → Flemingsberg (your example)
+    if (from.name.includes("Sundbyberg") && to.name.includes("Flemingsberg")) {
+      return {
+        direct: false,
+        viaHub: "T-Centralen",
+        hubId: "9004",
+        firstLine: this.mockLines.find(l => l.number === "11")!, // Blue line to T-Centralen
+        secondLine: this.mockLines.find(l => l.number === "35")!, // Commuter train to Flemingsberg
+        travelTime: 55,
+        firstLegTime: 15,
+        secondLegTime: 35,
+        transferWalk: 5,
+        delay: Math.floor(Math.random() * 10), // Random delay 0-10 min
+      };
+    }
+    
+    // For routes involving T-Centralen
+    if (from.name.includes("T-Centralen") || to.name.includes("T-Centralen")) {
+      const otherStation = from.name.includes("T-Centralen") ? to : from;
+      const line = otherStation.type === "RAILWSTN" ? 
+        this.mockLines.find(l => l.mode === "TRAIN")! : 
+        this.mockLines.find(l => l.mode === "METRO")!;
+      
+      return {
+        direct: true,
+        line,
+        travelTime: 25,
+        transferWalk: 0,
+        delay: Math.floor(Math.random() * 5), // Random delay 0-5 min
+      };
+    }
+
+    // Default: route via T-Centralen (most common for Stockholm)
+    return {
+      direct: false,
+      viaHub: "T-Centralen", 
+      hubId: "9004",
+      firstLine: this.mockLines.find(l => l.mode === "METRO" && l.number === "11")!,
+      secondLine: from.type === "RAILWSTN" || to.type === "RAILWSTN" ? 
+        this.mockLines.find(l => l.mode === "TRAIN")! : 
+        this.mockLines.find(l => l.mode === "METRO" && l.number === "13")!,
+      travelTime: 45,
+      firstLegTime: 20,
+      secondLegTime: 20,
+      transferWalk: 5,
+      delay: Math.floor(Math.random() * 8), // Random delay 0-8 min
+    };
+  }
+
+  private getPlatform(station: StopArea, line: Line): string {
+    if (line.mode === "METRO") {
+      return ["1", "2", "3", "4"][Math.floor(Math.random() * 4)];
+    } else if (line.mode === "TRAIN") {
+      return ["A", "B", "C", "1", "2"][Math.floor(Math.random() * 5)];
+    }
+    return ["A", "B", "C"][Math.floor(Math.random() * 3)];
   }
 
   async getDepartures(areaId: string): Promise<Departure[]> {
