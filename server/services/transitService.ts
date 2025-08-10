@@ -199,20 +199,74 @@ export class TransitService {
   }
 
   private async syncFromTrafiklab(): Promise<void> {
-    // Use the correct Trafiklab endpoint for stops/stations
-    const response = await fetch(`https://api.sl.se/api2/typeahead.json?key=${process.env.TRAFIKLAB_API_KEY}&searchstring=&stationsonly=true&maxresults=1000`);
+    console.log("Loading comprehensive Stockholm station data from Trafiklab...");
     
-    if (!response.ok) {
-      throw new Error(`Trafiklab API failed: ${response.status}`);
+    // Get ALL stations by searching with different methods
+    const allStations = new Map<string, any>();
+    
+    // Method 1: Get all stations with empty search
+    try {
+      const response1 = await fetch(`https://api.sl.se/api2/typeahead.json?key=${process.env.TRAFIKLAB_API_KEY}&searchstring=&stationsonly=true&maxresults=1000`);
+      if (response1.ok) {
+        const data1 = await response1.json();
+        const sites1 = data1.ResponseData || [];
+        sites1.forEach((site: any) => {
+          if (site.SiteId) allStations.set(site.SiteId.toString(), site);
+        });
+        console.log(`Method 1: Found ${sites1.length} stations`);
+      }
+    } catch (e) {
+      console.log("Method 1 failed, continuing...");
     }
 
-    const data = await response.json();
-    const sites = data.ResponseData || [];
-    console.log(`Fetched ${sites.length} stations from Trafiklab API`);
+    // Method 2: Search by major areas to get more stations
+    const searchTerms = ['stockholm', 'solna', 'huddinge', 'nacka', 'täby', 'sundbyberg', 'södermalm', 'norrmalm', 'östermalm', 'vasastan', 'söder', 'norr', 't-bana', 'pendel', 'metro', 'central', 'city'];
+    
+    for (const term of searchTerms) {
+      try {
+        const response = await fetch(`https://api.sl.se/api2/typeahead.json?key=${process.env.TRAFIKLAB_API_KEY}&searchstring=${encodeURIComponent(term)}&stationsonly=true&maxresults=1000`);
+        if (response.ok) {
+          const data = await response.json();
+          const sites = data.ResponseData || [];
+          sites.forEach((site: any) => {
+            if (site.SiteId) allStations.set(site.SiteId.toString(), site);
+          });
+        }
+        // Small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 100));
+      } catch (e) {
+        console.log(`Search for "${term}" failed, continuing...`);
+      }
+    }
 
+    // Method 3: Try the Site Lookup API for comprehensive data
+    try {
+      const siteResponse = await fetch(`https://api.sl.se/api2/typeahead.json?key=${process.env.TRAFIKLAB_API_KEY}&maxresults=2000`);
+      if (siteResponse.ok) {
+        const siteData = await siteResponse.json();
+        const sites = siteData.ResponseData || [];
+        sites.forEach((site: any) => {
+          if (site.SiteId) allStations.set(site.SiteId.toString(), site);
+        });
+        console.log(`Method 3: Additional ${sites.length} total entries processed`);
+      }
+    } catch (e) {
+      console.log("Method 3 failed, continuing...");
+    }
+
+    const totalStations = Array.from(allStations.values());
+    console.log(`Total unique stations found: ${totalStations.length}`);
+
+    if (totalStations.length === 0) {
+      throw new Error("No stations found from Trafiklab API");
+    }
+
+    // Insert all stations in batches
     const batchSize = 100;
-    for (let i = 0; i < sites.length; i += batchSize) {
-      const batch = sites.slice(i, i + batchSize);
+    let insertedCount = 0;
+    
+    for (let i = 0; i < totalStations.length; i += batchSize) {
+      const batch = totalStations.slice(i, i + batchSize);
       const stationData = batch
         .filter((site: any) => site.SiteId && site.Name && site.X && site.Y)
         .map((site: any) => ({
@@ -233,10 +287,11 @@ export class TransitService {
             type: sql`excluded.type`,
           },
         });
+        insertedCount += stationData.length;
       }
     }
 
-    console.log(`Successfully synced ${sites.length} stations from Trafiklab`);
+    console.log(`Successfully synced ${insertedCount} stations from Trafiklab to database`);
   }
 
   private async syncFromSLTransport(): Promise<void> {
