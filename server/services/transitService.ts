@@ -41,16 +41,16 @@ export class TransitService {
   private isInitialized: boolean = false;
 
   private mockLines: Line[] = [
-    { id: "L1", number: "10", mode: "METRO", name: "Blue Line", operatorId: "SL" },
-    { id: "L2", number: "11", mode: "METRO", name: "Blue Line", operatorId: "SL" },
-    { id: "L3", number: "13", mode: "METRO", name: "Red Line", operatorId: "SL" },
-    { id: "L4", number: "14", mode: "METRO", name: "Red Line", operatorId: "SL" },
-    { id: "L5", number: "17", mode: "METRO", name: "Green Line", operatorId: "SL" },
-    { id: "L6", number: "18", mode: "METRO", name: "Green Line", operatorId: "SL" },
-    { id: "L7", number: "19", mode: "METRO", name: "Green Line", operatorId: "SL" },
-    { id: "L8", number: "35", mode: "TRAIN", name: "Commuter Train", operatorId: "SL" },
-    { id: "L9", number: "36", mode: "TRAIN", name: "Commuter Train", operatorId: "SL" },
-    { id: "L10", number: "38", mode: "TRAIN", name: "Commuter Train", operatorId: "SL" },
+    { id: "L1", number: "10", mode: "METRO", name: "T10 Kungsträdgården-Hjulsta", operatorId: "SL" },
+    { id: "L2", number: "11", mode: "METRO", name: "T11 Kungsträdgården-Akalla", operatorId: "SL" },
+    { id: "L3", number: "13", mode: "METRO", name: "T13 Norsborg-Ropsten", operatorId: "SL" },
+    { id: "L4", number: "14", mode: "METRO", name: "T14 Fruängen-Mörby centrum", operatorId: "SL" },
+    { id: "L5", number: "17", mode: "METRO", name: "T17 Åkeshov-Skarpnäck", operatorId: "SL" },
+    { id: "L6", number: "18", mode: "METRO", name: "T18 Alvik-Farsta strand", operatorId: "SL" },
+    { id: "L7", number: "19", mode: "METRO", name: "T19 Hässelby strand-Hagsätra", operatorId: "SL" },
+    { id: "L8", number: "J35", mode: "TRAIN", name: "Commuter train towards Södertälje", operatorId: "SL" },
+    { id: "L9", number: "J36", mode: "TRAIN", name: "Commuter train towards Nynäshamn", operatorId: "SL" },
+    { id: "L10", number: "J38", mode: "TRAIN", name: "Commuter train towards Bålsta", operatorId: "SL" },
     { id: "L11", number: "AE", mode: "TRAIN", name: "Arlanda Express", operatorId: "AE" },
     { id: "L12", number: "43", mode: "BUS", name: "Bus 43", operatorId: "SL" },
     { id: "L13", number: "583", mode: "BUS", name: "Airport Bus 583", operatorId: "SL" },
@@ -83,15 +83,41 @@ export class TransitService {
 
   private getFallbackStations(): StopArea[] {
     return [
-      // Metro stations (Tunnelbana)
-      { id: "9001", name: "Stockholm Odenplan", lat: "59.3428", lon: "18.0484", type: "METROSTN" },
+      // Central Stockholm Metro stations
+      { id: "9001", name: "Odenplan", lat: "59.3428", lon: "18.0484", type: "METROSTN" },
       { id: "9003", name: "Kungsträdgården", lat: "59.3312", lon: "18.0745", type: "METROSTN" },
       { id: "9004", name: "T-Centralen", lat: "59.3312", lon: "18.0592", type: "METROSTN" },
-      { id: "9192", name: "Sundbyberg", lat: "59.3616", lon: "17.9706", type: "METROSTN" },
       { id: "9117", name: "Slussen", lat: "59.3199", lon: "18.0717", type: "METROSTN" },
       { id: "9170", name: "Gamla stan", lat: "59.3238", lon: "18.0686", type: "METROSTN" },
       { id: "1031", name: "Sergels torg", lat: "59.3326", lon: "18.0634", type: "METROSTN" },
-      { id: "1029", name: "Frihamnen", lat: "59.3469", lon: "18.1089", type: "BUSTERM" },
+      { id: "9118", name: "Östermalmstorg", lat: "59.3341", lon: "18.0759", type: "METROSTN" },
+      { id: "9119", name: "Hötorget", lat: "59.3345", lon: "18.0637", type: "METROSTN" },
+      { id: "9120", name: "Rådmansgatan", lat: "59.3378", lon: "18.0565", type: "METROSTN" },
+      { id: "9121", name: "St Eriksplan", lat: "59.3389", lon: "18.0343", type: "METROSTN" },
+      
+      // Blue Line Metro stations
+      { id: "9192", name: "Sundbyberg", lat: "59.3616", lon: "17.9706", type: "METROSTN" },
+      { id: "9193", name: "Solna centrum", lat: "59.3603", lon: "18.0006", type: "METROSTN" },
+      { id: "9194", name: "Västra skogen", lat: "59.3506", lon: "18.0156", type: "METROSTN" },
+      { id: "9195", name: "Karlberg", lat: "59.3414", lon: "18.0342", type: "METROSTN" },
+      { id: "9196", name: "Hjulsta", lat: "59.4133", lon: "17.9078", type: "METROSTN" },
+      { id: "9197", name: "Akalla", lat: "59.4105", lon: "17.9132", type: "METROSTN" },
+      
+      // Red Line Metro stations
+      { id: "9198", name: "Ropsten", lat: "59.3575", lon: "18.1036", type: "METROSTN" },
+      { id: "9199", name: "Tekniska högskolan", lat: "59.3447", lon: "18.0722", type: "METROSTN" },
+      { id: "9200A", name: "Universitetet", lat: "59.3644", lon: "18.0547", type: "METROSTN" },
+      { id: "9201A", name: "Bergshamra", lat: "59.3844", lon: "18.0394", type: "METROSTN" },
+      { id: "9202A", name: "Norsborg", lat: "59.2433", lon: "17.8294", type: "METROSTN" },
+      { id: "9203A", name: "Fruängen", lat: "59.2597", lon: "17.9044", type: "METROSTN" },
+      
+      // Green Line Metro stations 
+      { id: "9204", name: "Farsta strand", lat: "59.2358", lon: "18.0936", type: "METROSTN" },
+      { id: "9205", name: "Skarpnäck", lat: "59.2644", lon: "18.1333", type: "METROSTN" },
+      { id: "9206", name: "Alvik", lat: "59.3336", lon: "17.9886", type: "METROSTN" },
+      { id: "9207", name: "Hässelby strand", lat: "59.3744", lon: "17.8336", type: "METROSTN" },
+      { id: "9208", name: "Hagsätra", lat: "59.2714", lon: "18.1231", type: "METROSTN" },
+      { id: "9209", name: "Åkeshov", lat: "59.3575", lon: "17.9239", type: "METROSTN" },
       
       // Railway stations (Pendeltåg/Commuter trains)
       { id: "9005", name: "Stockholm Central", lat: "59.3303", lon: "18.0591", type: "RAILWSTN" },
@@ -101,9 +127,25 @@ export class TransitService {
       { id: "9202", name: "Älvsjö", lat: "59.2472", lon: "17.9614", type: "RAILWSTN" },
       { id: "9203", name: "Årstaberg", lat: "59.2797", lon: "18.0447", type: "RAILWSTN" },
       { id: "9002", name: "Arlanda Airport", lat: "59.6519", lon: "17.9186", type: "RAILWSTN" },
+      { id: "9210", name: "Södertälje Syd", lat: "59.1722", lon: "17.6503", type: "RAILWSTN" },
+      { id: "9211", name: "Gnesta", lat: "59.0472", lon: "17.3058", type: "RAILWSTN" },
+      { id: "9212", name: "Märsta", lat: "59.6186", lon: "17.8572", type: "RAILWSTN" },
+      { id: "9213", name: "Uppsala", lat: "59.8586", lon: "17.6389", type: "RAILWSTN" },
+      { id: "9214", name: "Nässjö", lat: "59.6561", lon: "17.8961", type: "RAILWSTN" },
+      { id: "9215", name: "Bro", lat: "59.5300", lon: "17.6744", type: "RAILWSTN" },
+      { id: "9216", name: "Kungsängen", lat: "59.4775", lon: "17.7372", type: "RAILWSTN" },
+      { id: "9217", name: "Bålsta", lat: "59.5611", lon: "17.5333", type: "RAILWSTN" },
+      
+      // Additional suburban areas
+      { id: "9218", name: "Sollentuna", lat: "59.4281", lon: "17.9506", type: "RAILWSTN" },
+      { id: "9219", name: "Upplands Väsby", lat: "59.5186", lon: "17.9133", type: "RAILWSTN" },
+      { id: "9220", name: "Rotebro", lat: "59.4989", lon: "17.9094", type: "RAILWSTN" },
+      { id: "9221", name: "Norrtälje", lat: "59.7578", lon: "18.7042", type: "BUSTERM" },
       
       // Bus terminals
       { id: "1080", name: "Cityterminalen", lat: "59.3317", lon: "18.0576", type: "BUSTERM" },
+      { id: "1029", name: "Frihamnen", lat: "59.3469", lon: "18.1089", type: "BUSTERM" },
+      { id: "1081", name: "Gullmarsplan", lat: "59.2989", lon: "18.0831", type: "BUSTERM" },
     ];
   }
 
@@ -157,7 +199,8 @@ export class TransitService {
   }
 
   private async syncFromTrafiklab(): Promise<void> {
-    const response = await fetch(`${this.TRAFIKLAB_API_BASE}/typeahead.json?key=${process.env.TRAFIKLAB_API_KEY}&searchstring=stockholm&stationsonly=true&maxresults=1000`);
+    // Use the correct Trafiklab endpoint for stops/stations
+    const response = await fetch(`https://api.sl.se/api2/typeahead.json?key=${process.env.TRAFIKLAB_API_KEY}&searchstring=&stationsonly=true&maxresults=1000`);
     
     if (!response.ok) {
       throw new Error(`Trafiklab API failed: ${response.status}`);
