@@ -21,12 +21,12 @@ export class TransitService {
   
   // ONLY REAL SWEDISH TRANSPORT DATA - NO MOCK DATA EVER
 
-  async searchTrips(fromCoord: [number, number], toCoord: [number, number], dateTime?: Date): Promise<Itinerary[]> {
+  async searchTrips(fromId: string, toId: string, dateTime?: Date): Promise<Itinerary[]> {
     try {
-      console.log(`REAL TRIP SEARCH: ${fromCoord} → ${toCoord} at ${dateTime?.toISOString()}`);
+      console.log(`REAL TRIP SEARCH: ${fromId} → ${toId} at ${dateTime?.toISOString()}`);
       
-      // Use ResRobot Trip API for real journey planning
-      const trips = await this.searchRealTripsWithResRobot(fromCoord, toCoord, dateTime);
+      // Use ResRobot Trip API with station IDs for real journey planning
+      const trips = await this.searchRealTripsWithResRobot(fromId, toId, dateTime);
       
       if (trips.length === 0) {
         throw new Error("No real trips found - ResRobot API returned empty results");
@@ -45,8 +45,8 @@ export class TransitService {
   }
 
   private async searchRealTripsWithResRobot(
-    fromCoord: [number, number], 
-    toCoord: [number, number], 
+    fromId: string, 
+    toId: string, 
     dateTime?: Date
   ): Promise<Itinerary[]> {
     
@@ -56,10 +56,8 @@ export class TransitService {
     }
 
     const params = new URLSearchParams({
-      originCoordLat: fromCoord[0].toString(),
-      originCoordLong: fromCoord[1].toString(),
-      destCoordLat: toCoord[0].toString(),
-      destCoordLong: toCoord[1].toString(),
+      originId: fromId,
+      destId: toId,
       format: 'json',
       accessId: apiKey,
       numTrips: '5',
