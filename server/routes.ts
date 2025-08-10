@@ -94,9 +94,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`ROUTES DEBUG: Hours/Minutes: ${stockholmDateTime.getHours()}:${stockholmDateTime.getMinutes()}`);
       console.log(`ROUTES DEBUG: Search type: ${data.leaveAt ? 'departure' : 'arrival'}`);
       
-      // Get station details - handle both string and object formats
+      // Get station details - ensure we have valid station IDs
       const fromId = typeof data.from === 'string' ? data.from : data.from.id;
       const toId = typeof data.to === 'string' ? data.to : data.to.id;
+      
+      // Validate station IDs are numeric (ResRobot station IDs)
+      if (!fromId.match(/^\d+$/) || !toId.match(/^\d+$/)) {
+        throw new Error("Invalid station IDs - must be numeric ResRobot station IDs");
+      }
       
       console.log(`Searching trips directly with station IDs: ${fromId} -> ${toId}`);
       

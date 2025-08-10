@@ -146,8 +146,8 @@ export class TransitService {
             operatorId: leg.Product?.operator || 'Unknown',
             color: this.getLineColor(leg.Product)
           },
-          departureTime: leg.Origin?.rtTime || leg.Origin?.time || new Date().toISOString(),
-          arrivalTime: leg.Destination?.rtTime || leg.Destination?.time || new Date().toISOString(),
+          departureTime: this.parseResRobotTime(leg.Origin?.rtTime || leg.Origin?.time),
+          arrivalTime: this.parseResRobotTime(leg.Destination?.rtTime || leg.Destination?.time),
           duration: this.parseDuration(leg.duration || '00:00:00'),
           direction: leg.direction || leg.Destination?.name || 'Unknown Direction'
         } as TransitLeg);
@@ -196,8 +196,8 @@ export class TransitService {
           } as TransitLeg;
         }
       }),
-      plannedDeparture: firstTransitLeg?.departureTime || new Date().toISOString(),
-      plannedArrival: lastTransitLeg?.arrivalTime || new Date().toISOString(),
+      plannedDeparture: firstTransitLeg?.departureTime || this.parseResRobotTime(new Date().toISOString()),
+      plannedArrival: lastTransitLeg?.arrivalTime || this.parseResRobotTime(new Date().toISOString()),
     } as Itinerary;
   }
 
@@ -350,6 +350,32 @@ export class TransitService {
     const arrivalTime = new Date(plannedArrival);
     arrivalTime.setMinutes(arrivalTime.getMinutes() + delayMinutes);
     return arrivalTime.toISOString();
+  }
+
+  private parseResRobotTime(timeString: string | undefined): string {
+    if (!timeString) {
+      return new Date().toISOString();
+    }
+    
+    try {
+      // ResRobot times come in format like "08:30:00" or "2025-08-11T08:30:00"
+      if (timeString.includes('T')) {
+        // Already in ISO format
+        return new Date(timeString).toISOString();
+      } else if (timeString.includes(':')) {
+        // Time only format like "08:30:00"
+        const today = new Date();
+        const [hours, minutes, seconds = '0'] = timeString.split(':');
+        today.setHours(parseInt(hours), parseInt(minutes), parseInt(seconds), 0);
+        return today.toISOString();
+      } else {
+        // Fallback
+        return new Date(timeString).toISOString();
+      }
+    } catch (error) {
+      console.error(`Failed to parse ResRobot time "${timeString}":`, error);
+      return new Date().toISOString();
+    }
   }
 
   private async findStationIdByName(stationName: string): Promise<string | null> {
