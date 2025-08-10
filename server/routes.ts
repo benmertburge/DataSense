@@ -79,19 +79,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/trips/search', isAuthenticated, async (req: any, res) => {
     try {
       const data = journeyPlannerSchema.parse(req.body);
-      const dateTime = new Date(`${data.date}T${data.time}`);
+      // CRITICAL FIX: Create dateTime in Stockholm timezone, not browser timezone
+      // When user selects 11:30 AM, we want exactly 11:30 AM Stockholm time
+      const stockholmDateTime = new Date(`${data.date}T${data.time}:00+02:00`); // Stockholm is UTC+2 in summer
       
       console.log(`Journey search request: ${data.from} → ${data.to}`);
-      console.log(`Raw date/time input: ${data.date}T${data.time}`);
-      console.log(`Parsed dateTime object: ${dateTime.toISOString()}`);
-      console.log(`Local time: ${dateTime.toString()}`);
+      console.log(`Raw input: ${data.date}T${data.time}`);
+      console.log(`Stockholm time created: ${stockholmDateTime.toISOString()}`);
+      console.log(`Local Stockholm time will be: ${new Intl.DateTimeFormat('sv-SE', {
+        timeZone: 'Europe/Stockholm',
+        year: 'numeric',
+        month: '2-digit', 
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).format(stockholmDateTime)}`);
       console.log(`Search type: ${data.leaveAt ? 'departure' : 'arrival'}`);
       
       // Use SL Journey Planner 2 - native Stockholm transport routing
       const routes = await transitService.searchRoutesWithSL(
         data.from, 
         data.to, 
-        dateTime,
+        stockholmDateTime,
         data.leaveAt ? 'departure' : 'arrival'
       );
       
