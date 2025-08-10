@@ -123,21 +123,13 @@ export class TransitService {
           distance: parseInt(leg.dist || '0')
         } as WalkLeg);
       } else {
-        // Transit leg - debug Product structure
-        console.log('DEBUG: ResRobot Product data:', JSON.stringify(leg.Product, null, 2));
+        // Transit leg - ResRobot Product array contains line info
+        // Product is an array, take the first element for line info
+        const product = Array.isArray(leg.Product) ? leg.Product[0] : leg.Product;
+        const lineNumber = product?.num || product?.line || product?.displayNumber || leg.number?.toString() || 'Unknown';
+        const lineName = product?.name || leg.name || `${this.getTransportTypeText(product)} ${lineNumber}`;
         
-        // Try all possible line number fields from ResRobot
-        const lineNumber = leg.Product?.line || 
-                          leg.Product?.num || 
-                          leg.Product?.number || 
-                          leg.Product?.name || 
-                          leg.Product?.shortName ||
-                          leg.Product?.code ||
-                          leg.Product?.trainNumber ||
-                          leg.Product?.lineNumber ||
-                          'Unknown';
-        
-        console.log(`DEBUG: Extracted line number: "${lineNumber}" from Product fields`);
+        console.log(`DEBUG: ResRobot Line - num: ${product?.num}, line: ${product?.line}, name: ${product?.name}`);
         
         legs.push({
           type: 'transit',
@@ -156,10 +148,10 @@ export class TransitService {
           line: {
             id: `RR_${lineNumber}`,
             number: lineNumber,
-            mode: this.mapResRobotProductToMode(leg.Product),
-            name: `${this.getTransportTypeText(leg.Product)} ${lineNumber}`,
-            operatorId: leg.Product?.operator || leg.Product?.operatorCode || 'SL',
-            color: this.getLineColor(leg.Product)
+            mode: this.mapResRobotProductToMode(product),
+            name: lineName,
+            operatorId: product?.operator || product?.operatorCode || 'SL',
+            color: this.getLineColor(product)
           },
           departureTime: leg.Origin?.time || '08:30:00', // ResRobot scheduled time
           arrivalTime: leg.Destination?.time || '09:30:00', // ResRobot scheduled time
