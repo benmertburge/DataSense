@@ -81,6 +81,7 @@ Preferred communication style: Simple, everyday language.
 - **Icons**: Lucide React for consistent iconography
 - **Fonts**: Google Fonts (Inter) for modern typography
 - **Styling**: Tailwind CSS with CSS custom properties for theming
+- **Form Controls**: Optimized calendar and clock icon visibility with proper dark mode inversion and consistent sizing
 
 ### Development Tools
 - **Build System**: Vite with React plugin and runtime error overlay
