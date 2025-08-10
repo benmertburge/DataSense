@@ -291,7 +291,7 @@ export default function JourneyPlannerForm() {
                     <FormItem>
                       <FormLabel className="text-gray-900 dark:text-white">Date</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} className="bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600" />
+                        <Input type="date" {...field} className="bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 [&::-webkit-calendar-picker-indicator]:dark:invert" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -305,7 +305,7 @@ export default function JourneyPlannerForm() {
                     <FormItem>
                       <FormLabel className="text-gray-900 dark:text-white">Time</FormLabel>
                       <FormControl>
-                        <Input type="time" {...field} className="bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600" />
+                        <Input type="time" {...field} className="bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 [&::-webkit-calendar-picker-indicator]:dark:invert" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -318,7 +318,7 @@ export default function JourneyPlannerForm() {
                   type="button"
                   variant={leaveAt ? "default" : "ghost"}
                   size="sm"
-                  className="flex-1"
+                  className={`flex-1 ${leaveAt ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
                   onClick={() => setLeaveAt(true)}
                 >
                   Leave at
@@ -327,7 +327,7 @@ export default function JourneyPlannerForm() {
                   type="button"
                   variant={!leaveAt ? "default" : "ghost"}
                   size="sm"
-                  className="flex-1"
+                  className={`flex-1 ${!leaveAt ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
                   onClick={() => setLeaveAt(false)}
                 >
                   Arrive by
