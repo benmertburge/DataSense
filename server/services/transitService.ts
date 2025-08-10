@@ -354,10 +354,31 @@ export class TransitService {
     try {
       const results = await this.searchStationsUsingTripAPI(query);
       console.log(`REAL API SUCCESS: Found ${results.length} stations from live Swedish transport APIs`);
+      
+      // Also save discovered stations to database for future use
+      if (results.length > 0) {
+        await this.saveStationsToDatabase(results);
+      }
+      
       return results;
     } catch (error) {
       console.error("REAL API FAILED:", error);
       throw new Error(`Cannot fetch real station data: ${error}`);
+    }
+  }
+  
+  private async saveStationsToDatabase(stations: StopArea[]): Promise<void> {
+    try {
+      for (const station of stations) {
+        // Try to insert, ignore if already exists
+        await db.insert(stopAreas)
+          .values(station)
+          .onConflictDoNothing()
+          .catch(() => {}); // Ignore duplicate key errors
+      }
+      console.log(`Saved ${stations.length} stations to database`);
+    } catch (error) {
+      console.log("Failed to save stations to database:", error);
     }
   }
 
