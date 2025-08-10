@@ -877,23 +877,13 @@ export class TransitService {
             }
           });
           
-          // CRITICAL FIX: Use proper Stockholm timezone formatting
-          // Convert to Stockholm local time (Europe/Stockholm timezone)
-          const stockholmTime = new Intl.DateTimeFormat('sv-SE', {
-            timeZone: 'Europe/Stockholm',
-            year: 'numeric',
-            month: '2-digit', 
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
-          }).formatToParts(dateTime);
+          // Use the Stockholm dateTime that was already created correctly in routes.ts
+          // Extract date and time from the properly formatted Stockholm time
+          const slDate = dateTime.toISOString().split('T')[0]; // YYYY-MM-DD  
+          const slTime = dateTime.toISOString().split('T')[1].substring(0, 5); // HH:MM
           
-          const slDate = `${stockholmTime.find(p => p.type === 'year')?.value}-${stockholmTime.find(p => p.type === 'month')?.value}-${stockholmTime.find(p => p.type === 'day')?.value}`;
-          const slTime = `${stockholmTime.find(p => p.type === 'hour')?.value}:${stockholmTime.find(p => p.type === 'minute')?.value}`;
-          
-          console.log(`DEBUG: User input: ${dateTime.toString()}`);
-          console.log(`DEBUG: Stockholm local time: ${slDate} ${slTime}`);
+          console.log(`DIRECT SL API: Using Stockholm dateTime: ${dateTime.toISOString()}`);
+          console.log(`DIRECT SL API: Extracted date: ${slDate}, time: ${slTime}`);
           
           queryParams.append('date', slDate);
           queryParams.append('time', slTime);
@@ -904,8 +894,8 @@ export class TransitService {
             queryParams.append('searchForArrival', '0');
           }
           
-          console.log(`Using ${searchType} time: ${slDate} ${slTime}`);
-          console.log(`Full SL API URL: ${this.SL_JOURNEY_API}/trips?${queryParams}`);
+          console.log(`ACTUAL SL API CALL - Using ${searchType} time: ${slDate} ${slTime}`);
+          console.log(`ACTUAL SL API URL: ${this.SL_JOURNEY_API}/trips?${queryParams.toString()}`);
           
           const url = `${this.SL_JOURNEY_API}/trips?${queryParams}`;
           const response = await fetch(url);
