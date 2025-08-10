@@ -5,7 +5,7 @@ import type { Itinerary, Departure, Line, StopArea, Leg, TransitLeg, WalkLeg } f
 export class TransitService {
   private mockStopAreas: StopArea[] = [
     // Stockholm Metro (Tunnelbana)
-    { id: "9001", name: "Stockholm Odenplan", lat: "59.3428", lon: "18.0484", type: "METROSTN" },
+    { id: "9001", name: "Odenplan", lat: "59.3428", lon: "18.0484", type: "METROSTN" },
     { id: "9003", name: "Kungsträdgården", lat: "59.3312", lon: "18.0745", type: "METROSTN" },
     { id: "9004", name: "T-Centralen", lat: "59.3312", lon: "18.0592", type: "METROSTN" },
     { id: "9192", name: "Sundbyberg", lat: "59.3616", lon: "17.9706", type: "METROSTN" },
@@ -13,6 +13,9 @@ export class TransitService {
     { id: "9117", name: "Slussen", lat: "59.3199", lon: "18.0717", type: "METROSTN" },
     { id: "9189", name: "Södermalm", lat: "59.3165", lon: "18.0636", type: "METROSTN" },
     { id: "9170", name: "Gamla Stan", lat: "59.3238", lon: "18.0686", type: "METROSTN" },
+    { id: "9195", name: "Rinkeby", lat: "59.3788", lon: "17.9194", type: "METROSTN" },
+    { id: "9196", name: "Tensta", lat: "59.3903", lon: "17.9047", type: "METROSTN" },
+    { id: "9197", name: "Hjulsta", lat: "59.4025", lon: "17.8847", type: "METROSTN" },
     
     // Railway stations (Pendeltåg)
     { id: "9005", name: "Stockholm Central", lat: "59.3303", lon: "18.0591", type: "RAILWSTN" },
@@ -22,6 +25,10 @@ export class TransitService {
     { id: "9183", name: "Uppsala Centralstation", lat: "59.8586", lon: "17.6389", type: "RAILWSTN" },
     { id: "9184", name: "Nynäshamn", lat: "58.9034", lon: "17.9478", type: "RAILWSTN" },
     { id: "9185", name: "Bålsta", lat: "59.5697", lon: "17.5372", type: "RAILWSTN" },
+    { id: "9200", name: "Tumba", lat: "59.1994", lon: "17.8344", type: "RAILWSTN" },
+    { id: "9201", name: "Huddinge", lat: "59.2364", lon: "17.9856", type: "RAILWSTN" },
+    { id: "9202", name: "Älvsjö", lat: "59.2472", lon: "17.9614", type: "RAILWSTN" },
+    { id: "9203", name: "Årstaberg", lat: "59.2797", lon: "18.0447", type: "RAILWSTN" },
     
     // Bus terminals
     { id: "1080", name: "Cityterminalen", lat: "59.3317", lon: "18.0576", type: "BUSTERM" },
