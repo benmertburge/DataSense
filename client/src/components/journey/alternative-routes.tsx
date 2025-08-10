@@ -97,19 +97,19 @@ export default function AlternativeRoutes() {
         {allRoutes.map((route: any, index: number) => (
           <div 
             key={route.id || index}
-            className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 hover:border-blue-600 dark:hover:border-blue-400 cursor-pointer transition-colors bg-white dark:bg-gray-750"
+            className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 hover:border-blue-600 dark:hover:border-blue-400 cursor-pointer transition-colors"
           >
             <div className="flex justify-between items-start mb-3">
               <div className="flex items-center space-x-2">
-                <Badge variant="secondary" className={index === 0 ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-800"}>
+                <Badge variant="secondary" className={index === 0 ? "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200" : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200"}>
                   {route.label}
                 </Badge>
-                <span className="text-sm font-medium">
+                <span className="text-sm font-medium text-gray-900 dark:text-white">
                   {getTotalDuration(route.plannedDeparture, route.plannedArrival)} total
                 </span>
               </div>
               <div className="text-right">
-                <p className="text-sm font-medium">
+                <p className="text-sm font-medium text-gray-900 dark:text-white">
                   {formatTime(route.plannedDeparture)} - {formatTime(route.plannedArrival)}
                 </p>
                 <p className="text-xs text-green-600">{getRouteStatus(route.legs)}</p>
@@ -131,23 +131,23 @@ export default function AlternativeRoutes() {
                       {leg.line.number}
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-sm font-medium">{leg.line.name}</span>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">{leg.line.name}</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
                         {leg.from?.name || 'Unknown'} → {leg.to?.name || 'Unknown'}
                       </span>
                       {(leg.from?.platform || leg.to?.platform) && (
-                        <span className="text-xs text-blue-600">
+                        <span className="text-xs text-blue-600 dark:text-blue-400">
                           🚉 {leg.from?.platform && `Platform ${leg.from.platform}`}
                           {leg.from?.platform && leg.to?.platform && ' → '}
                           {leg.to?.platform && `Platform ${leg.to.platform}`}
-                          <span className="text-gray-400 ml-1">(from Trafiklab)</span>
+                          <span className="text-gray-400 dark:text-gray-500 ml-1">(from Trafiklab)</span>
                         </span>
                       )}
                     </div>
                   </div>
                   <div className="text-right text-xs">
-                    <div className="font-medium">{formatTime(leg.plannedDeparture)} - {formatTime(leg.plannedArrival)}</div>
-                    <div className="text-gray-500">{getTotalDuration(leg.plannedDeparture, leg.plannedArrival)}</div>
+                    <div className="font-medium text-gray-900 dark:text-white">{formatTime(leg.plannedDeparture)} - {formatTime(leg.plannedArrival)}</div>
+                    <div className="text-gray-500 dark:text-gray-400">{getTotalDuration(leg.plannedDeparture, leg.plannedArrival)}</div>
                   </div>
                 </div>
               ))}
