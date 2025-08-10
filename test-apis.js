@@ -1,24 +1,32 @@
 // Test script to verify both APIs work
 const testResRobotAPI = async () => {
-  const url = `https://api.resrobot.se/v2.1/trip?originId=740000773&destId=740000031&format=json&accessId=${process.env.RESROBOT_API_KEY}&numTrips=1&time=08:30&date=2025-08-11`;
+  // Test different ResRobot endpoint formats from the documentation
+  const formats = [
+    `https://api.resrobot.se/v2.1/trip?originId=740000773&destId=740000031&format=json&accessId=${process.env.RESROBOT_API_KEY}`,
+    `https://api.resrobot.se/v2.1/trip.json?originId=740000773&destId=740000031&accessId=${process.env.RESROBOT_API_KEY}`,
+    `https://api.resrobot.se/v2.1/trip?originExtId=740000773&destExtId=740000031&format=json&accessId=${process.env.RESROBOT_API_KEY}`
+  ];
   
-  try {
-    const response = await fetch(url);
-    console.log(`ResRobot API Status: ${response.status}`);
-    
-    if (response.ok) {
-      const data = await response.json();
-      console.log(`ResRobot trips found: ${data.Trip?.length || 0}`);
-      if (data.Trip?.[0]?.LegList?.Leg?.[0]) {
-        const leg = data.Trip[0].LegList.Leg[0];
-        console.log(`First leg time: ${leg.Origin?.time} - ${leg.Destination?.time}`);
+  for (let i = 0; i < formats.length; i++) {
+    console.log(`\nTesting ResRobot format ${i + 1}:`);
+    try {
+      const response = await fetch(formats[i]);
+      console.log(`Status: ${response.status}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log(`SUCCESS! Trips found: ${data.Trip?.length || 0}`);
+        if (data.Trip?.[0]) {
+          console.log(`First trip keys: ${Object.keys(data.Trip[0])}`);
+        }
+        return; // Stop on first success
+      } else {
+        const text = await response.text();
+        console.log(`Error: ${text.slice(0, 200)}`);
       }
-    } else {
-      const text = await response.text();
-      console.log(`ResRobot Error: ${text}`);
+    } catch (error) {
+      console.log(`Fetch Error: ${error.message}`);
     }
-  } catch (error) {
-    console.log(`ResRobot Fetch Error: ${error.message}`);
   }
 };
 

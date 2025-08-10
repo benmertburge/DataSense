@@ -274,8 +274,14 @@ export class TransitService {
               if (matchingDeparture) {
                 enhancedLegs.push({
                   ...leg,
-                  expectedDeparture: matchingDeparture.expectedTime,
-                  expectedArrival: this.calculateExpectedArrival(leg.plannedArrival, matchingDeparture.delay || 0)
+                  actualDeparture: matchingDeparture.realtime || matchingDeparture.scheduled,
+                  actualArrival: this.calculateArrivalTime(matchingDeparture.realtime || matchingDeparture.scheduled, leg.duration),
+                  delay: matchingDeparture.delay || 0,
+                  realTimeData: {
+                    hasRealTimeData: matchingDeparture.is_realtime || false,
+                    delay: matchingDeparture.delay || 0,
+                    canceled: matchingDeparture.canceled || false
+                  }
                 });
               } else {
                 enhancedLegs.push(leg);
@@ -297,15 +303,15 @@ export class TransitService {
       const lastTransitLeg = enhancedLegs.reverse().find(leg => leg.kind === 'TRANSIT') as any;
       enhancedLegs.reverse();
       
-      const delayMinutes = firstTransitLeg?.expectedDeparture 
-        ? Math.round((new Date(firstTransitLeg.expectedDeparture).getTime() - new Date(firstTransitLeg.plannedDeparture).getTime()) / 60000)
+      const delayMinutes = firstTransitLeg?.actualDeparture 
+        ? Math.round((new Date(firstTransitLeg.actualDeparture).getTime() - new Date(firstTransitLeg.plannedDeparture).getTime()) / 60000)
         : 0;
       
       enhancedTrips.push({
         ...trip,
         legs: enhancedLegs,
-        expectedDeparture: firstTransitLeg?.expectedDeparture,
-        expectedArrival: lastTransitLeg?.expectedArrival,
+        actualDeparture: firstTransitLeg?.actualDeparture || firstTransitLeg?.plannedDeparture,
+        actualArrival: lastTransitLeg?.actualArrival || lastTransitLeg?.plannedArrival,
         delayMinutes: Math.max(0, delayMinutes)
       });
     }

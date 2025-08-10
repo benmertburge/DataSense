@@ -21,13 +21,47 @@ export default function AlternativeRoutes() {
     label: index === 0 ? 'Best Route' : `Alternative ${index}`
   }));
 
-  const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+  const formatTime = (timeString: string) => {
+    if (!timeString) return 'N/A';
+    try {
+      // Handle both ISO format and simple time format
+      let date: Date;
+      if (timeString.includes('T')) {
+        // ISO format from Trafiklab: "2025-08-11T08:32:00"
+        date = new Date(timeString);
+      } else if (timeString.includes(':')) {
+        // Simple time format: "08:32:00"
+        const today = new Date();
+        const [hours, minutes] = timeString.split(':');
+        today.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        date = today;
+      } else {
+        date = new Date(timeString);
+      }
+      
+      if (isNaN(date.getTime())) return 'Invalid';
+      return date.toLocaleTimeString('sv-SE', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: false 
+      });
+    } catch {
+      return 'Invalid';
+    }
   };
 
   const getTotalDuration = (departure: string, arrival: string) => {
-    const duration = Math.round((new Date(arrival).getTime() - new Date(departure).getTime()) / 60000);
-    return `${duration} min`;
+    try {
+      const depTime = new Date(departure);
+      const arrTime = new Date(arrival);
+      if (isNaN(depTime.getTime()) || isNaN(arrTime.getTime())) {
+        return 'N/A';
+      }
+      const duration = Math.round((arrTime.getTime() - depTime.getTime()) / 60000);
+      return `${duration} min`;
+    } catch {
+      return 'N/A';
+    }
   };
 
   const getModeDisplay = (line: any) => {
