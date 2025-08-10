@@ -4,11 +4,36 @@ import type { Itinerary, Departure, Line, StopArea, Leg, TransitLeg, WalkLeg } f
 // Mock transit data following SL structure
 export class TransitService {
   private mockStopAreas: StopArea[] = [
+    // Stockholm Metro (Tunnelbana)
     { id: "9001", name: "Stockholm Odenplan", lat: "59.3428", lon: "18.0484", type: "METROSTN" },
-    { id: "9002", name: "Arlanda Airport", lat: "59.6519", lon: "17.9186", type: "RAILWSTN" },
     { id: "9003", name: "Kungsträdgården", lat: "59.3312", lon: "18.0745", type: "METROSTN" },
     { id: "9004", name: "T-Centralen", lat: "59.3312", lon: "18.0592", type: "METROSTN" },
+    { id: "9192", name: "Sundbyberg", lat: "59.3616", lon: "17.9706", type: "METROSTN" },
+    { id: "9180", name: "Flemingsberg", lat: "59.2175", lon: "17.9447", type: "RAILWSTN" },
+    { id: "9117", name: "Slussen", lat: "59.3199", lon: "18.0717", type: "METROSTN" },
+    { id: "9189", name: "Södermalm", lat: "59.3165", lon: "18.0636", type: "METROSTN" },
+    { id: "9170", name: "Gamla Stan", lat: "59.3238", lon: "18.0686", type: "METROSTN" },
+    
+    // Railway stations (Pendeltåg)
     { id: "9005", name: "Stockholm Central", lat: "59.3303", lon: "18.0591", type: "RAILWSTN" },
+    { id: "9002", name: "Arlanda Airport", lat: "59.6519", lon: "17.9186", type: "RAILWSTN" },
+    { id: "9181", name: "Södertälje Centrum", lat: "59.1958", lon: "17.6253", type: "RAILWSTN" },
+    { id: "9182", name: "Märsta", lat: "59.6175", lon: "17.8544", type: "RAILWSTN" },
+    { id: "9183", name: "Uppsala Centralstation", lat: "59.8586", lon: "17.6389", type: "RAILWSTN" },
+    { id: "9184", name: "Nynäshamn", lat: "58.9034", lon: "17.9478", type: "RAILWSTN" },
+    { id: "9185", name: "Bålsta", lat: "59.5697", lon: "17.5372", type: "RAILWSTN" },
+    
+    // Bus terminals
+    { id: "1080", name: "Cityterminalen", lat: "59.3317", lon: "18.0576", type: "BUSTERM" },
+    { id: "1081", name: "Slussen Bussterminalen", lat: "59.3199", lon: "18.0717", type: "BUSTERM" },
+    { id: "1082", name: "Tekniska Högskolan", lat: "59.3472", lon: "18.0728", type: "BUSTERM" },
+    
+    // Popular areas
+    { id: "9186", name: "Östermalm", lat: "59.3369", lon: "18.0895", type: "METROSTN" },
+    { id: "9187", name: "Vasastan", lat: "59.3439", lon: "18.0636", type: "METROSTN" },
+    { id: "9188", name: "Södermalm", lat: "59.3165", lon: "18.0636", type: "METROSTN" },
+    { id: "9190", name: "Norrmalm", lat: "59.3293", lon: "18.0686", type: "METROSTN" },
+    { id: "9191", name: "Gamla Stan", lat: "59.3238", lon: "18.0686", type: "METROSTN" },
   ];
 
   private mockLines: Line[] = [
@@ -159,6 +184,17 @@ export class TransitService {
     }
 
     return departures.sort((a, b) => new Date(a.plannedTime).getTime() - new Date(b.plannedTime).getTime());
+  }
+
+  async searchStopAreas(query: string): Promise<StopArea[]> {
+    if (!query.trim()) return [];
+    
+    const filtered = this.mockStopAreas.filter(stop =>
+      stop.name.toLowerCase().includes(query.toLowerCase())
+    );
+    
+    // Return filtered results instead of throwing error
+    return filtered.slice(0, 10);
   }
 
   async updateJourneyRealtime(journeyId: string): Promise<Partial<Itinerary>> {

@@ -1,4 +1,3 @@
-import PDFDocument from 'pdfkit';
 import { storage } from '../storage';
 import { encryptionService } from './encryptionService';
 import type { CompensationCase, Journey, CompensationClaimRequest } from '@shared/schema';
@@ -42,7 +41,7 @@ export class CompensationService {
     caseId: string, 
     claimData: CompensationClaimRequest,
     evidenceFiles?: Array<{ id: string; type: string; filename: string }>
-  ): Promise<{ case: CompensationCase; pdfUrl: string }> {
+  ): Promise<{ case: CompensationCase; slFormUrl: string }> {
     const compensationCase = await storage.getCompensationCase(caseId);
     if (!compensationCase) {
       throw new Error("Compensation case not found");
@@ -59,15 +58,14 @@ export class CompensationService {
       ticketType: claimData.ticketType,
     }));
 
-    // Generate PDF
-    const pdfBuffer = await this.generateClaimPDF(compensationCase, claimData);
-    const pdfUrl = await this.uploadPDF(pdfBuffer, caseId);
+    // Generate SL form URL with pre-filled data
+    const slFormUrl = this.generateSLFormUrl(compensationCase, claimData);
 
     // Update case
     const updatedCase = await storage.updateCompensationCase(caseId, {
       encryptedPersonalData: encryptedData,
       evidenceIds: evidenceFiles?.map(f => f.id) || [],
-      pdfUrl,
+      slFormUrl,
       status: "submitted",
       submittedAt: new Date(),
       actualAmount: this.calculateCompensation(
@@ -76,7 +74,16 @@ export class CompensationService {
       ).toString(),
     });
 
-    return { case: updatedCase, pdfUrl };
+    return { case: updatedCase, slFormUrl };
+  }
+
+  private generateSLFormUrl(compensationCase: CompensationCase, claimData: CompensationClaimRequest): string {
+    // SL's actual compensation form URL
+    const baseUrl = "https://sl.se/sv/kundservice/ersattning-fordrojning";
+    
+    // In real implementation, we would use SL's API or form automation
+    // For now, return the form URL with case reference
+    return `${baseUrl}?ref=${compensationCase.id}&delay=${compensationCase.delayMinutes}&type=${claimData.ticketType}`;
   }
 
   private calculateCompensation(delayMinutes: number, ticketType: string): number {
@@ -103,62 +110,48 @@ export class CompensationService {
     return Math.round(baseAmount);
   }
 
-  private async generateClaimPDF(
+  async fillSLForm(
     compensationCase: CompensationCase, 
     claimData: CompensationClaimRequest
-  ): Promise<Buffer> {
-    return new Promise((resolve, reject) => {
-      const doc = new PDFDocument();
-      const chunks: Buffer[] = [];
+  ): Promise<{ success: boolean; formData: any }> {
+    // In real implementation, this would use browser automation (Playwright/Puppeteer)
+    // to fill SL's actual web form with the user's data
+    
+    const formData = {
+      // Personal information
+      firstName: claimData.firstName,
+      lastName: claimData.lastName,
+      email: claimData.email,
+      phone: claimData.phone,
+      
+      // Journey details
+      delayMinutes: compensationCase.delayMinutes,
+      ticketType: claimData.ticketType,
+      compensationAmount: this.calculateCompensation(compensationCase.delayMinutes, claimData.ticketType),
+      
+      // Payment details
+      paymentMethod: claimData.paymentMethod,
+      paymentDetails: claimData.paymentDetails,
+      
+      // Case reference
+      caseId: compensationCase.id,
+      submissionDate: new Date().toISOString(),
+    };
 
-      doc.on('data', chunk => chunks.push(chunk));
-      doc.on('end', () => resolve(Buffer.concat(chunks)));
-      doc.on('error', reject);
-
-      // Header
-      doc.fontSize(20).text('Compensation Claim', 50, 50);
-      doc.fontSize(12).text(`Claim ID: ${compensationCase.id}`, 50, 80);
-      doc.text(`Generated: ${new Date().toLocaleDateString('sv-SE')}`, 50, 95);
-
-      // Claimant Information
-      doc.fontSize(14).text('Claimant Information', 50, 130);
-      doc.fontSize(10)
-        .text(`Name: ${claimData.firstName} ${claimData.lastName}`, 50, 150)
-        .text(`Email: ${claimData.email}`, 50, 165)
-        .text(`Phone: ${claimData.phone || 'Not provided'}`, 50, 180)
-        .text(`Payment Method: ${claimData.paymentMethod}`, 50, 195);
-
-      // Journey Details
-      doc.fontSize(14).text('Journey Details', 50, 230);
-      doc.fontSize(10)
-        .text(`Date: ${new Date().toLocaleDateString('sv-SE')}`, 50, 250)
-        .text(`Delay: ${compensationCase.delayMinutes} minutes`, 50, 265)
-        .text(`Ticket Type: ${claimData.ticketType}`, 50, 280)
-        .text(`Estimated Compensation: ${compensationCase.estimatedAmount} SEK`, 50, 295);
-
-      // Legal Notice
-      doc.fontSize(8).text(
-        'This claim is submitted in accordance with EU Regulation 261/2004 and Swedish transport legislation. ' +
-        'Personal data is processed securely and will be deleted after processing unless required by law.',
-        50, 350, { width: 500 }
-      );
-
-      // Signature line
-      doc.fontSize(10).text('Signature: ________________________', 50, 400);
-      doc.text(`Date: ${new Date().toLocaleDateString('sv-SE')}`, 50, 420);
-
-      doc.end();
-    });
-  }
-
-  private async uploadPDF(pdfBuffer: Buffer, caseId: string): Promise<string> {
-    // In production, upload to cloud storage (S3, etc.)
-    // For now, return a mock URL
-    return `/api/compensation/cases/${caseId}/pdf`;
+    // TODO: Implement actual form automation when integrating with SL
+    // This would involve:
+    // 1. Opening SL's compensation form
+    // 2. Filling in all the fields programmatically
+    // 3. Uploading any evidence files
+    // 4. Submitting the form
+    // 5. Capturing the confirmation/reference number
+    
+    return { success: true, formData };
   }
 
   async getClaimStatus(caseId: string): Promise<CompensationCase | null> {
-    return await storage.getCompensationCase(caseId);
+    const compensationCase = await storage.getCompensationCase(caseId);
+    return compensationCase || null;
   }
 
   async processAutomaticDetection(userId: string): Promise<CompensationCase[]> {
@@ -166,7 +159,8 @@ export class CompensationService {
     const detectedCases: CompensationCase[] = [];
 
     for (const journey of recentJourneys) {
-      if (journey.status === "completed" && journey.delayMinutes >= this.DELAY_THRESHOLD_MINUTES) {
+      const delayMinutes = journey.delayMinutes || 0;
+      if (journey.status === "completed" && delayMinutes >= this.DELAY_THRESHOLD_MINUTES) {
         // Check if case already exists
         const existingCases = await storage.getUserCompensationCases(userId);
         const exists = existingCases.some(c => c.journeyId === journey.id);

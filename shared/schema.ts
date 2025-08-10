@@ -102,7 +102,7 @@ export const compensationCases = pgTable("compensation_cases", {
   // Encrypted personal data
   encryptedPersonalData: text("encrypted_personal_data"), // JSON with name, payment details, etc.
   evidenceIds: text("evidence_ids").array(), // File IDs for uploaded evidence
-  pdfUrl: varchar("pdf_url"),
+  slFormUrl: varchar("sl_form_url"), // URL to SL's compensation form with pre-filled data
   submittedAt: timestamp("submitted_at"),
   processedAt: timestamp("processed_at"),
   createdAt: timestamp("created_at").defaultNow(),
