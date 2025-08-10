@@ -1198,35 +1198,69 @@ export class TransitService {
   // Use Google Places API to find major transit hubs dynamically
   async findTransitHubsWithGoogle(centerLat: number, centerLon: number): Promise<{name: string; lat: number; lon: number}[]> {
     try {
-      // In production, this would use Google Places API with transit_station type
-      // For now, return intelligent fallback based on Stockholm geography
-      const stockholmHubs = [
-        { name: 'Stockholm City', lat: 59.3313, lon: 18.0592 },
-        { name: 'Stockholm Södra', lat: 59.3141, lon: 18.0747 },  
-        { name: 'Odenplan', lat: 59.3432, lon: 18.0473 },
-        { name: 'Slussen', lat: 59.3201, lon: 18.0719 }
-      ];
-
-      // Filter and rank by proximity to route center
-      const rankedHubs = stockholmHubs
-        .map(hub => ({
-          ...hub,
-          distance: this.calculateWalkingDistance([centerLat, centerLon], [hub.lat, hub.lon])
-        }))
-        .filter(hub => hub.distance < 10) // Within 10km of route
-        .sort((a, b) => a.distance - b.distance)
-        .slice(0, 4); // Top 4 closest hubs
-
-      console.log(`Google-based hub ranking:`, rankedHubs.map(h => `${h.name} (${h.distance.toFixed(1)}km)`));
+      // Use SL Station Search API to dynamically discover major hubs
+      // Use SL Station Search API to dynamically discover major hubs
+      const hubSearchTerms = ['Stockholm', 'Centralen', 'Odenplan', 'Slussen', 'Södra'];
+      const discoveredHubs = [];
       
-      return rankedHubs;
+      for (const term of hubSearchTerms) {
+        try {
+          const stations = await this.searchSLStops(term);
+          const majorStations = stations.filter(station => 
+            station.name.toLowerCase().includes('stockholm') ||
+            station.name.toLowerCase().includes('centralen') ||
+            station.name.toLowerCase().includes('odenplan') ||
+            station.name.toLowerCase().includes('slussen') ||
+            station.name.toLowerCase().includes('södra')
+          );
+          
+          for (const station of majorStations.slice(0, 2)) { // Top 2 per search term
+            const stationCoord = [parseFloat(station.lat!), parseFloat(station.lon!)];
+            const distance = this.calculateWalkingDistance([centerLat, centerLon], stationCoord);
+            
+            discoveredHubs.push({
+              name: station.name,
+              lat: parseFloat(station.lat!),
+              lon: parseFloat(station.lon!),
+              distance
+            });
+          }
+        } catch (error) {
+          console.log(`Could not search SL for hub term "${term}":`, error);
+        }
+      }
+
+      // Remove duplicates and rank by proximity
+      const uniqueHubs = discoveredHubs.filter((hub, index, self) => 
+        self.findIndex(h => h.name === hub.name) === index
+      );
+      
+      const rankedHubs = uniqueHubs
+        .filter(hub => hub.distance < 15) // Within 15km of route
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, 5); // Top 5 closest hubs
+
+      console.log(`SL API discovered hubs:`, rankedHubs.map(h => `${h.name} (${h.distance.toFixed(1)}km)`));
+      
+      return rankedHubs.length > 0 ? rankedHubs : [];
       
     } catch (error) {
-      console.log('Google Places API error, using fallback hubs:', error);
-      return [
-        { name: 'Stockholm City', lat: 59.3313, lon: 18.0592 },
-        { name: 'Stockholm Södra', lat: 59.3141, lon: 18.0747 }
-      ];
+      console.log('SL hub discovery error:', error);
+      // Try one more fallback approach - search for major stations by type
+      try {
+        const centralStations = await this.searchSLStops('Stockholm');
+        return centralStations
+          .filter(station => station.name.toLowerCase().includes('stockholm'))
+          .slice(0, 2)
+          .map(station => ({
+            name: station.name,
+            lat: parseFloat(station.lat!),
+            lon: parseFloat(station.lon!)
+          }));
+      } catch (fallbackError) {
+        console.log('Fallback hub search also failed:', fallbackError);
+        return []; // Pure failure, direct routing only
+      }
     }
   }
 
@@ -1264,24 +1298,54 @@ export class TransitService {
   // Get real-time crowdedness using Google Maps Traffic + SL deviations
   async getRealTimeCrowdedness(hub: StopArea, dateTime: Date): Promise<{ score: number; level: number }> {
     try {
-      // Check SL service deviations at this hub
+      // Get real-time departures to analyze crowdedness from delay patterns
+      const departures = await this.getDepartures(hub.id);
       const deviations = await this.getSLDeviations();
+      
+      // Filter deviations affecting this hub
       const hubDeviations = deviations.filter((d: any) => 
         d.scope_elements?.some((e: any) => e.stop_area_id === hub.id) ||
         d.title?.toLowerCase().includes(hub.name.toLowerCase())
       );
       
+      // Analyze real departure delays to detect crowdedness
+      let delayedDepartures = 0;
+      let totalDepartures = 0;
+      
+      departures.forEach(dep => {
+        if (dep.expectedDeparture && dep.plannedDeparture) {
+          totalDepartures++;
+          const planned = new Date(dep.plannedDeparture);
+          const expected = new Date(dep.expectedDeparture);
+          const delayMinutes = (expected.getTime() - planned.getTime()) / 60000;
+          
+          if (delayMinutes > 2) { // More than 2 minutes delayed
+            delayedDepartures++;
+          }
+        }
+      });
+      
       const hour = dateTime.getHours();
       const isRushHour = (hour >= 7 && hour <= 9) || (hour >= 16 && hour <= 18);
       const isWeekend = dateTime.getDay() === 0 || dateTime.getDay() === 6;
       
-      let crowdednessScore = isWeekend ? 3 : (isRushHour ? 7 : 5); // Base score
+      // Calculate crowdedness based on real data
+      let crowdednessScore = isWeekend ? 2 : (isRushHour ? 6 : 4); // Base score
       
-      // Increase score if there are active deviations (indicates problems/crowding)
-      if (hubDeviations.length > 0) {
-        crowdednessScore += hubDeviations.length * 2;
-        console.log(`Found ${hubDeviations.length} deviations affecting ${hub.name}, increasing crowdedness score`);
+      // Add delay-based crowdedness factor
+      if (totalDepartures > 0) {
+        const delayRatio = delayedDepartures / totalDepartures;
+        crowdednessScore += delayRatio * 4; // Up to 4 extra points for high delay rates
       }
+      
+      // Add deviation-based factor
+      if (hubDeviations.length > 0) {
+        crowdednessScore += hubDeviations.length * 1.5;
+        console.log(`Found ${hubDeviations.length} deviations affecting ${hub.name}`);
+      }
+      
+      // Log real-time analysis
+      console.log(`${hub.name} crowdedness: ${delayedDepartures}/${totalDepartures} delayed, ${hubDeviations.length} deviations`);
       
       return { 
         score: Math.min(crowdednessScore, 10), // Cap at 10
@@ -1290,35 +1354,42 @@ export class TransitService {
       
     } catch (error) {
       console.log(`Could not get crowdedness data for ${hub.name}:`, error);
-      // Fallback scoring based on time only
-      const hour = dateTime.getHours();
-      const isRushHour = (hour >= 7 && hour <= 9) || (hour >= 16 && hour <= 18);
-      const score = isRushHour ? 7 : 5;
-      return { score, level: score };
+      // Return neutral score when no data available
+      return { score: 5, level: 5 };
     }
   }
 
-  // Analyze connection quality by checking available transport lines
+  // Analyze connection quality using real SL departures data
   async analyzeConnectionQuality(hub: StopArea): Promise<number> {
     try {
-      // Use real SL data to count available transport lines at the hub
-      // This would require additional API calls in a full implementation
-      // For now, use station name patterns as indicators
-      const stationName = hub.name.toLowerCase();
+      // Get real-time departures to count active transport lines
+      const departures = await this.getDepartures(hub.id);
       
-      // Major interchange stations typically have high connection quality
-      if (stationName.includes('city') || stationName.includes('centralen')) {
-        return 9; // Excellent connections - central hub
-      } else if (stationName.includes('södra') || stationName.includes('odenplan')) {
-        return 7; // Good connections - important regional hub  
-      } else if (stationName.includes('slussen') || stationName.includes('fridhemsplan')) {
-        return 6; // Moderate connections - smaller hub
-      } else {
-        return 5; // Average connections
-      }
+      // Count unique transport modes and lines
+      const uniqueLines = new Set();
+      const transportModes = new Set();
+      
+      departures.forEach(dep => {
+        if (dep.line) {
+          uniqueLines.add(dep.line.number);
+          transportModes.add(dep.line.mode);
+        }
+      });
+      
+      // Calculate connection score based on variety and frequency
+      let score = Math.min(uniqueLines.size, 10); // Max 10 points for line variety
+      score += transportModes.size * 2; // Bonus for transport mode diversity
+      score = Math.min(score, 10); // Cap at 10
+      
+      console.log(`${hub.name} connection analysis: ${uniqueLines.size} lines, ${transportModes.size} modes, score: ${score}`);
+      
+      return score;
+      
     } catch (error) {
-      console.log(`Could not analyze connections for ${hub.name}:`, error);
-      return 5; // Default moderate score
+      console.log(`Could not analyze real connections for ${hub.name}:`, error);
+      
+      // No fallback - return minimal score if no data available
+      return 3;
     }
   }
 
