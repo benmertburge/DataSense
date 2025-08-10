@@ -8,7 +8,7 @@ export default function AlternativeRoutes() {
   const { data: tripResults } = useQuery({
     queryKey: ['trip-results'],
     enabled: false, // Only get cached data
-  });
+  }) as { data: { best?: any; alternatives?: any[] } | undefined };
 
   if (!tripResults?.alternatives || tripResults.alternatives.length === 0) {
     return null;
@@ -95,8 +95,15 @@ export default function AlternativeRoutes() {
             <div className="flex items-center space-x-2 text-sm">
               {route.legs.filter((leg: any) => leg.kind === 'TRANSIT').map((leg: any, legIndex: number, transitLegs: any[]) => (
                 <div key={legIndex} className="flex items-center space-x-2">
-                  {getModeDisplay(leg.line)}
-                  <span className="text-gray-600">{leg.line.name || `${leg.line.mode} ${leg.line.number}`}</span>
+                  <div className="flex items-center space-x-1">
+                    <div 
+                      className="w-5 h-5 rounded text-white text-xs font-bold flex items-center justify-center"
+                      style={{ backgroundColor: leg.line.color || '#666666' }}
+                    >
+                      {leg.line.number}
+                    </div>
+                    <span className="text-sm">{leg.line.name}</span>
+                  </div>
                   {legIndex < transitLegs.length - 1 && (
                     <ArrowRight className="h-3 w-3 text-gray-400" />
                   )}

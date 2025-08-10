@@ -60,7 +60,7 @@ export const lines = pgTable("lines", {
   mode: varchar("mode", { enum: ["BUS", "METRO", "TRAIN", "TRAM", "FERRY"] }).notNull(),
   name: varchar("name"),
   operatorId: varchar("operator_id"),
-  color: varchar("color"),
+  color: varchar("color").default("#666666"),
 });
 
 export const savedRoutes = pgTable("saved_routes", {

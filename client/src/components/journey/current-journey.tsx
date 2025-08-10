@@ -118,8 +118,19 @@ export default function CurrentJourney() {
                   <div className="flex-1">
                     <div className="flex justify-between items-start mb-2">
                       <div>
-                        <p className="font-semibold text-blue-600">{leg.line.name || `${leg.line.mode} ${leg.line.number}`}</p>
-                        <p className="text-sm text-gray-600">
+                        <div className="flex items-center space-x-2">
+                          <div 
+                            className="w-6 h-6 rounded text-white text-xs font-bold flex items-center justify-center"
+                            style={{ backgroundColor: leg.line.color || '#666666' }}
+                          >
+                            {leg.line.number}
+                          </div>
+                          <p className="font-semibold">{leg.line.name}</p>
+                        </div>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {leg.from.name} → {leg.to.name}
+                        </p>
+                        <p className="text-xs text-gray-500">
                           Platform {leg.from.platform} → {leg.directionText}
                         </p>
                       </div>

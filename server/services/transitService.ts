@@ -41,19 +41,19 @@ export class TransitService {
   private isInitialized: boolean = false;
 
   private mockLines: Line[] = [
-    { id: "L1", number: "10", mode: "METRO", name: "T10 Kungsträdgården-Hjulsta", operatorId: "SL" },
-    { id: "L2", number: "11", mode: "METRO", name: "T11 Kungsträdgården-Akalla", operatorId: "SL" },
-    { id: "L3", number: "13", mode: "METRO", name: "T13 Norsborg-Ropsten", operatorId: "SL" },
-    { id: "L4", number: "14", mode: "METRO", name: "T14 Fruängen-Mörby centrum", operatorId: "SL" },
-    { id: "L5", number: "17", mode: "METRO", name: "T17 Åkeshov-Skarpnäck", operatorId: "SL" },
-    { id: "L6", number: "18", mode: "METRO", name: "T18 Alvik-Farsta strand", operatorId: "SL" },
-    { id: "L7", number: "19", mode: "METRO", name: "T19 Hässelby strand-Hagsätra", operatorId: "SL" },
-    { id: "L8", number: "J37", mode: "TRAIN", name: "Pendeltåg 37", operatorId: "SL" },
-    { id: "L9", number: "J36", mode: "TRAIN", name: "Pendeltåg 36", operatorId: "SL" },
-    { id: "L10", number: "J38", mode: "TRAIN", name: "Pendeltåg 38", operatorId: "SL" },
-    { id: "L11", number: "AE", mode: "TRAIN", name: "Arlanda Express", operatorId: "AE" },
-    { id: "L12", number: "43", mode: "BUS", name: "Bus 43", operatorId: "SL" },
-    { id: "L13", number: "583", mode: "BUS", name: "Airport Bus 583", operatorId: "SL" },
+    { id: "L1", number: "10", mode: "METRO", name: "T10 Kungsträdgården-Hjulsta", operatorId: "SL", color: "#0089CA" },
+    { id: "L2", number: "11", mode: "METRO", name: "T11 Kungsträdgården-Akalla", operatorId: "SL", color: "#0089CA" },
+    { id: "L3", number: "13", mode: "METRO", name: "T13 Norsborg-Ropsten", operatorId: "SL", color: "#E3000F" },
+    { id: "L4", number: "14", mode: "METRO", name: "T14 Fruängen-Mörby centrum", operatorId: "SL", color: "#E3000F" },
+    { id: "L5", number: "17", mode: "METRO", name: "T17 Åkeshov-Skarpnäck", operatorId: "SL", color: "#00A651" },
+    { id: "L6", number: "18", mode: "METRO", name: "T18 Alvik-Farsta strand", operatorId: "SL", color: "#00A651" },
+    { id: "L7", number: "19", mode: "METRO", name: "T19 Hässelby strand-Hagsätra", operatorId: "SL", color: "#00A651" },
+    { id: "L8", number: "J37", mode: "TRAIN", name: "Pendeltåg 37", operatorId: "SL", color: "#9B59B6" },
+    { id: "L9", number: "J36", mode: "TRAIN", name: "Pendeltåg 36", operatorId: "SL", color: "#9B59B6" },
+    { id: "L10", number: "J38", mode: "TRAIN", name: "Pendeltåg 38", operatorId: "SL", color: "#9B59B6" },
+    { id: "L11", number: "AE", mode: "TRAIN", name: "Arlanda Express", operatorId: "AE", color: "#9B59B6" },
+    { id: "L12", number: "43", mode: "BUS", name: "Bus 43", operatorId: "SL", color: "#E3000F" },
+    { id: "L13", number: "583", mode: "BUS", name: "Airport Bus 583", operatorId: "SL", color: "#E3000F" },
   ];
 
   private async fetchSLSites(): Promise<StopArea[]> {
@@ -572,7 +572,7 @@ export class TransitService {
       const time = dateTime.toTimeString().slice(0, 5);
       const isArrival = searchType === 'arrival' ? '1' : '0';
       
-      const url = `${this.RESROBOT_API}/trip?originExtId=${fromStation.id}&destExtId=${toStation.id}&date=${date}&time=${time}&searchForArrival=${isArrival}&format=json&accessId=${process.env.RESROBOT_API_KEY}&numF=3&numB=0`;
+      const url = `${this.RESROBOT_API}/trip?accessId=${process.env.RESROBOT_API_KEY}&originExtId=${fromStation.id}&destExtId=${toStation.id}&date=${date}&time=${time}&searchForArrival=${isArrival}&format=json&numF=3&numB=0`;
       
       console.log(`ResRobot trip search: ${from} (${fromStation.id}) → ${to} (${toStation.id}), ${searchType} at ${time}`);
       
@@ -686,7 +686,8 @@ export class TransitService {
         number: "?",
         mode: "TRAIN",
         name: "Transit",
-        operatorId: "SL"
+        operatorId: "SL",
+        color: "#666666"
       };
     }
     
