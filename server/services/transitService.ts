@@ -440,16 +440,9 @@ export class TransitService {
 
     const baseTime = dateTime || new Date();
     
-    // Generate main itinerary
-    const best = this.generateItinerary(fromArea, toArea, baseTime, "main");
-    
-    // Generate alternatives
-    const alternatives = [
-      this.generateItinerary(fromArea, toArea, new Date(baseTime.getTime() + 5 * 60000), "fast"),
-      this.generateItinerary(fromArea, toArea, new Date(baseTime.getTime() + 10 * 60000), "direct"),
-    ];
-
-    return { best, alternatives };
+    // NO LOCAL ROUTING - ResRobot ONLY
+    console.error("CRITICAL ERROR: searchRoutes called instead of searchRoutesWithResRobot");
+    throw new Error("System must use ResRobot API exclusively - no local routing allowed");
   }
 
   private generateItinerary(from: StopArea, to: StopArea, baseTime: Date, type: "main" | "fast" | "direct"): Itinerary {
@@ -572,29 +565,65 @@ export class TransitService {
       const time = dateTime.toTimeString().slice(0, 5);
       const isArrival = searchType === 'arrival' ? '1' : '0';
       
-      const url = `${this.RESROBOT_API}/trip?accessId=${process.env.RESROBOT_API_KEY}&originExtId=${fromStation.id}&destExtId=${toStation.id}&date=${date}&time=${time}&searchForArrival=${isArrival}&format=json&numF=3&numB=0`;
+      // Try to get alternative routes by requesting more options and different search times
+      const urls = [
+        `${this.RESROBOT_API}/trip?accessId=${process.env.RESROBOT_API_KEY}&originExtId=${fromStation.id}&destExtId=${toStation.id}&date=${date}&time=${time}&searchForArrival=${isArrival}&format=json&numF=5&numB=0`,
+        `${this.RESROBOT_API}/trip?accessId=${process.env.RESROBOT_API_KEY}&originExtId=${fromStation.id}&destExtId=${toStation.id}&date=${date}&time=${time}&searchForArrival=${isArrival}&format=json&numF=5&numB=0&viaId=740000059` // Try via Odenplan (740000059)
+      ];
       
       console.log(`ResRobot trip search: ${from} (${fromStation.id}) → ${to} (${toStation.id}), ${searchType} at ${time}`);
+      console.log(`Testing multiple routing options including via Odenplan...`);
       
-      const response = await fetch(url);
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("ResRobot API error:", errorText);
-        throw new Error(`ResRobot API failed: ${response.status}`);
+      let allTrips: any[] = [];
+      
+      // Try multiple search strategies to get different routes
+      for (const [index, url] of urls.entries()) {
+        try {
+          console.log(`Trying search strategy ${index + 1}: ${url}`);
+          const response = await fetch(url);
+          if (!response.ok) {
+            console.log(`Strategy ${index + 1} failed with status ${response.status}`);
+            continue;
+          }
+          
+          const data = await response.json();
+          
+          if (data.Error) {
+            console.log(`Strategy ${index + 1} error: ${data.Error.errorText}`);
+            continue;
+          }
+          
+          const trips = data.Trip || [];
+          console.log(`Strategy ${index + 1} returned ${trips.length} trips`);
+          allTrips = allTrips.concat(trips);
+          
+          // Don't overwhelm the API
+          if (index < urls.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+          
+        } catch (error) {
+          console.log(`Strategy ${index + 1} failed:`, error);
+        }
       }
-
-      const data = await response.json();
-      if (data.Error) {
-        throw new Error(`ResRobot error: ${data.Error.errorText || 'API error'}`);
+      
+      if (allTrips.length === 0) {
+        throw new Error("No trips found with any routing strategy");
       }
-
-      const trips = data.Trip || [];
-      if (trips.length === 0) {
-        throw new Error("No trips found");
-      }
+      
+      // Remove duplicates and sort by duration
+      const uniqueTrips = allTrips.filter((trip, index, self) => 
+        index === self.findIndex(t => t.ctxRecon === trip.ctxRecon)
+      ).sort((a, b) => {
+        const aDuration = this.parseDuration(a.duration);
+        const bDuration = this.parseDuration(b.duration);
+        return aDuration - bDuration;
+      });
+      
+      console.log(`Found ${uniqueTrips.length} unique routes after deduplication`);
 
       // Convert ResRobot trips to our Itinerary format
-      const convertedTrips = trips.slice(0, 3).map((trip: any, index: number) => 
+      const convertedTrips = uniqueTrips.slice(0, 3).map((trip: any, index: number) => 
         this.convertResRobotToItinerary(trip, fromStation, toStation, index === 0 ? 'main' : `alt_${index}`)
       );
 
@@ -604,8 +633,8 @@ export class TransitService {
       };
 
     } catch (error) {
-      console.log("ResRobot failed, falling back to local search:", error);
-      return this.searchRoutes(from, to, undefined, dateTime);
+      console.error("ResRobot failed - NO FALLBACK. All routing must use real API data:", error);
+      throw new Error("Real-time routing unavailable - please try again later");
     }
   }
 
@@ -613,7 +642,11 @@ export class TransitService {
     const legs: Leg[] = [];
     const legList = trip.LegList?.Leg || [];
 
+    console.log(`Converting ${legList.length} legs from ResRobot to itinerary format`);
+    
     for (const leg of legList) {
+      console.log(`Processing leg: ${leg.Origin?.name} → ${leg.Destination?.name} via ${leg.Product?.name}`);
+      
       if (leg.type === 'WALK') {
         const walkLeg: WalkLeg = {
           kind: "WALK",
@@ -633,12 +666,12 @@ export class TransitService {
           directionText: leg.direction || toStation.name,
           from: {
             areaId: leg.Origin?.extId || leg.Origin?.id || fromStation.id,
-            name: this.cleanStationName(leg.Origin?.name || fromStation.name),
+            name: leg.Origin?.name || fromStation.name, // Use EXACT ResRobot station names
             platform: leg.Origin?.track || "1"
           },
           to: {
             areaId: leg.Destination?.extId || leg.Destination?.id || toStation.id,
-            name: this.cleanStationName(leg.Destination?.name || toStation.name),
+            name: leg.Destination?.name || toStation.name, // Use EXACT ResRobot station names
             platform: leg.Destination?.track || "1"
           },
           plannedDeparture: leg.Origin?.date + 'T' + leg.Origin?.time,
@@ -787,6 +820,12 @@ export class TransitService {
     // Fallback to ResRobot ID if no specific mapping
     return resRobotLineId;
   }
+  
+  private parseDuration(duration: string): number {
+    // Parse PT40M format to minutes
+    const matches = duration.match(/PT(\d+)M/);
+    return matches ? parseInt(matches[1]) : 999;
+  }
 
   private planBestRoute(from: StopArea, to: StopArea): {
     direct: boolean;
@@ -801,7 +840,13 @@ export class TransitService {
     transferWalk: number;
     delay: number;
   } {
-    console.log(`Planning coordinate-based route: ${from.name} (${from.lat}, ${from.lon}) → ${to.name} (${to.lat}, ${to.lon})`);
+    console.log(`Planning coordinate-based route: ${from.name} (${from.lat || 'no coords'}, ${from.lon || 'no coords'}) → ${to.name} (${to.lat || 'no coords'}, ${to.lon || 'no coords'})`);
+    
+    // Skip coordinate routing if coordinates are missing - use ResRobot exclusively
+    if (!from.lat || !from.lon || !to.lat || !to.lon) {
+      console.log("Missing coordinates - should use ResRobot API exclusively");
+      throw new Error("Missing coordinate data - use ResRobot routing");
+    }
     
     // Calculate direct distance between stations
     const directDistance = this.calculateDistance(
@@ -822,12 +867,12 @@ export class TransitService {
     
     for (const hub of possibleHubs) {
       const distanceToHub = this.calculateDistance(
-        parseFloat(from.lat), parseFloat(from.lon),
+        parseFloat(from.lat!), parseFloat(from.lon!),
         hub.lat, hub.lon
       );
       const distanceFromHub = this.calculateDistance(
         hub.lat, hub.lon,
-        parseFloat(to.lat), parseFloat(to.lon)
+        parseFloat(to.lat!), parseFloat(to.lon!)
       );
       const totalDistance = distanceToHub + distanceFromHub;
       
@@ -857,12 +902,12 @@ export class TransitService {
     
     // Multi-leg journey via optimal hub
     const firstLegDistance = this.calculateDistance(
-      parseFloat(from.lat), parseFloat(from.lon),
+      parseFloat(from.lat!), parseFloat(from.lon!),
       bestHub.lat, bestHub.lon
     );
     const secondLegDistance = this.calculateDistance(
       bestHub.lat, bestHub.lon,
-      parseFloat(to.lat), parseFloat(to.lon)
+      parseFloat(to.lat!), parseFloat(to.lon!)
     );
     
     return {
@@ -985,8 +1030,8 @@ export class TransitService {
   
   private getBestTrainLine(from: StopArea, to: StopArea): Line {
     // Use coordinate data to determine best pendeltåg line
-    const fromLat = parseFloat(from.lat);
-    const fromLon = parseFloat(from.lon);
+    const fromLat = parseFloat(from.lat || '0');
+    const fromLon = parseFloat(from.lon || '0');
     
     // Line 43 serves northern suburbs (Sundbyberg area)
     if (fromLat > 59.35 || from.name.toLowerCase().includes('sundbyberg')) {

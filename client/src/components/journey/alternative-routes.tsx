@@ -104,7 +104,9 @@ export default function AlternativeRoutes() {
                     </div>
                     <div className="flex flex-col">
                       <span className="text-sm font-medium">{leg.line.name}</span>
-                      <span className="text-xs text-gray-500">{leg.from.name} → {leg.to.name}</span>
+                      <span className="text-xs text-gray-500">
+                        {leg.from?.name || 'Unknown'} → {leg.to?.name || 'Unknown'}
+                      </span>
                     </div>
                   </div>
                   {legIndex < transitLegs.length - 1 && (

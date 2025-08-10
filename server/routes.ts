@@ -81,23 +81,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const data = journeyPlannerSchema.parse(req.body);
       const dateTime = new Date(`${data.date}T${data.time}`);
       
-      // Use ResRobot for comprehensive journey planning
-      if (process.env.RESROBOT_API_KEY) {
-        const routes = await transitService.searchRoutesWithResRobot(
-          data.from, 
-          data.to, 
-          dateTime,
-          data.leaveAt ? 'departure' : 'arrival'
-        );
-        return res.json(routes);
+      // ALWAYS use ResRobot - no fallback allowed
+      if (!process.env.RESROBOT_API_KEY) {
+        throw new Error("ResRobot API key required");
       }
       
-      // Fallback to local planning
-      const routes = await transitService.searchRoutes(
+      const routes = await transitService.searchRoutesWithResRobot(
         data.from, 
         data.to, 
-        data.via, 
-        dateTime
+        dateTime,
+        data.leaveAt ? 'departure' : 'arrival'
       );
       
       res.json(routes);
