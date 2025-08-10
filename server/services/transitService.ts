@@ -1,47 +1,39 @@
 import { storage } from "../storage";
 import type { Itinerary, Departure, Line, StopArea, Leg, TransitLeg, WalkLeg } from "@shared/schema";
 
-// Mock transit data following SL structure
+// SL API integration
+interface SLSite {
+  id: number;
+  name: string;
+  lat: number;
+  lon: number;
+  stop_areas?: number[];
+}
+
+interface SLDeparture {
+  direction: string;
+  destination: string;
+  state: string;
+  scheduled: string;
+  expected: string;
+  display: string;
+  line: {
+    id: number;
+    designation: string;
+    transport_mode: string;
+  };
+  stop_area: {
+    id: number;
+    name: string;
+    type: string;
+  };
+}
+
 export class TransitService {
-  private mockStopAreas: StopArea[] = [
-    // Stockholm Metro (Tunnelbana)
-    { id: "9001", name: "Odenplan", lat: "59.3428", lon: "18.0484", type: "METROSTN" },
-    { id: "9003", name: "Kungsträdgården", lat: "59.3312", lon: "18.0745", type: "METROSTN" },
-    { id: "9004", name: "T-Centralen", lat: "59.3312", lon: "18.0592", type: "METROSTN" },
-    { id: "9192", name: "Sundbyberg", lat: "59.3616", lon: "17.9706", type: "METROSTN" },
-    { id: "9180", name: "Flemingsberg", lat: "59.2175", lon: "17.9447", type: "RAILWSTN" },
-    { id: "9117", name: "Slussen", lat: "59.3199", lon: "18.0717", type: "METROSTN" },
-    { id: "9189", name: "Södermalm", lat: "59.3165", lon: "18.0636", type: "METROSTN" },
-    { id: "9170", name: "Gamla Stan", lat: "59.3238", lon: "18.0686", type: "METROSTN" },
-    { id: "9195", name: "Rinkeby", lat: "59.3788", lon: "17.9194", type: "METROSTN" },
-    { id: "9196", name: "Tensta", lat: "59.3903", lon: "17.9047", type: "METROSTN" },
-    { id: "9197", name: "Hjulsta", lat: "59.4025", lon: "17.8847", type: "METROSTN" },
-    
-    // Railway stations (Pendeltåg)
-    { id: "9005", name: "Stockholm Central", lat: "59.3303", lon: "18.0591", type: "RAILWSTN" },
-    { id: "9002", name: "Arlanda Airport", lat: "59.6519", lon: "17.9186", type: "RAILWSTN" },
-    { id: "9181", name: "Södertälje Centrum", lat: "59.1958", lon: "17.6253", type: "RAILWSTN" },
-    { id: "9182", name: "Märsta", lat: "59.6175", lon: "17.8544", type: "RAILWSTN" },
-    { id: "9183", name: "Uppsala Centralstation", lat: "59.8586", lon: "17.6389", type: "RAILWSTN" },
-    { id: "9184", name: "Nynäshamn", lat: "58.9034", lon: "17.9478", type: "RAILWSTN" },
-    { id: "9185", name: "Bålsta", lat: "59.5697", lon: "17.5372", type: "RAILWSTN" },
-    { id: "9200", name: "Tumba", lat: "59.1994", lon: "17.8344", type: "RAILWSTN" },
-    { id: "9201", name: "Huddinge", lat: "59.2364", lon: "17.9856", type: "RAILWSTN" },
-    { id: "9202", name: "Älvsjö", lat: "59.2472", lon: "17.9614", type: "RAILWSTN" },
-    { id: "9203", name: "Årstaberg", lat: "59.2797", lon: "18.0447", type: "RAILWSTN" },
-    
-    // Bus terminals
-    { id: "1080", name: "Cityterminalen", lat: "59.3317", lon: "18.0576", type: "BUSTERM" },
-    { id: "1081", name: "Slussen Bussterminalen", lat: "59.3199", lon: "18.0717", type: "BUSTERM" },
-    { id: "1082", name: "Tekniska Högskolan", lat: "59.3472", lon: "18.0728", type: "BUSTERM" },
-    
-    // Popular areas
-    { id: "9186", name: "Östermalm", lat: "59.3369", lon: "18.0895", type: "METROSTN" },
-    { id: "9187", name: "Vasastan", lat: "59.3439", lon: "18.0636", type: "METROSTN" },
-    { id: "9188", name: "Södermalm", lat: "59.3165", lon: "18.0636", type: "METROSTN" },
-    { id: "9190", name: "Norrmalm", lat: "59.3293", lon: "18.0686", type: "METROSTN" },
-    { id: "9191", name: "Gamla Stan", lat: "59.3238", lon: "18.0686", type: "METROSTN" },
-  ];
+  private readonly SL_API_BASE = "https://transport.integration.sl.se/v1";
+  private cachedSites: StopArea[] = [];
+  private cacheExpiry: number = 0;
+  private readonly CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 
   private mockLines: Line[] = [
     { id: "L1", number: "10", mode: "METRO", name: "Blue Line", operatorId: "SL" },
@@ -59,15 +51,87 @@ export class TransitService {
     { id: "L13", number: "583", mode: "BUS", name: "Airport Bus 583", operatorId: "SL" },
   ];
 
+  private async fetchSLSites(): Promise<StopArea[]> {
+    try {
+      console.log("Fetching real SL station data...");
+      const response = await fetch(`${this.SL_API_BASE}/sites`);
+      
+      if (!response.ok) {
+        console.error("SL API failed, using fallback data");
+        return this.getFallbackStations();
+      }
+
+      const sites: SLSite[] = await response.json();
+      
+      return sites.slice(0, 500).map(site => ({ // Limit to first 500 stations
+        id: site.id.toString(),
+        name: site.name,
+        lat: site.lat.toString(),
+        lon: site.lon.toString(),
+        type: this.determineStationType(site.name)
+      }));
+    } catch (error) {
+      console.error("Error fetching SL sites:", error);
+      return this.getFallbackStations();
+    }
+  }
+
+  private getFallbackStations(): StopArea[] {
+    return [
+      { id: "9001", name: "Odenplan", lat: "59.3428", lon: "18.0484", type: "METROSTN" },
+      { id: "9003", name: "Kungsträdgården", lat: "59.3312", lon: "18.0745", type: "METROSTN" },
+      { id: "9004", name: "T-Centralen", lat: "59.3312", lon: "18.0592", type: "METROSTN" },
+      { id: "9192", name: "Sundbyberg", lat: "59.3616", lon: "17.9706", type: "METROSTN" },
+      { id: "9180", name: "Flemingsberg", lat: "59.2175", lon: "17.9447", type: "RAILWSTN" },
+      { id: "9005", name: "Stockholm Central", lat: "59.3303", lon: "18.0591", type: "RAILWSTN" },
+      { id: "9200", name: "Tumba", lat: "59.1994", lon: "17.8344", type: "RAILWSTN" },
+      { id: "9201", name: "Huddinge", lat: "59.2364", lon: "17.9856", type: "RAILWSTN" },
+      { id: "1080", name: "Cityterminalen", lat: "59.3317", lon: "18.0576", type: "BUSTERM" },
+    ];
+  }
+
+  private determineStationType(name: string): "METROSTN" | "RAILWSTN" | "BUSTERM" {
+    const lowerName = name.toLowerCase();
+    if (lowerName.includes("centralstation") || lowerName.includes("central") || 
+        lowerName.includes("flemingsberg") || lowerName.includes("tumba")) {
+      return "RAILWSTN";
+    }
+    if (lowerName.includes("terminal") || lowerName.includes("busstation")) {
+      return "BUSTERM";
+    }
+    return "METROSTN";
+  }
+
+  private async ensureSitesLoaded(): Promise<void> {
+    const now = Date.now();
+    if (this.cachedSites.length === 0 || now > this.cacheExpiry) {
+      this.cachedSites = await this.fetchSLSites();
+      this.cacheExpiry = now + this.CACHE_DURATION;
+      console.log(`Loaded ${this.cachedSites.length} SL stations`);
+    }
+  }
+
+  async searchSites(query: string): Promise<StopArea[]> {
+    await this.ensureSitesLoaded();
+    
+    return this.cachedSites
+      .filter((area) =>
+        area.name.toLowerCase().includes(query.toLowerCase())
+      )
+      .slice(0, 10);
+  }
+
   async searchRoutes(from: string, to: string, via?: string, dateTime?: Date): Promise<{
     best: Itinerary;
     alternatives: Itinerary[];
   }> {
-    // Find stop areas
-    const fromArea = this.mockStopAreas.find(area => 
+    await this.ensureSitesLoaded();
+    
+    // Find stop areas from real SL data
+    const fromArea = this.cachedSites.find(area => 
       area.name.toLowerCase().includes(from.toLowerCase()) || area.id === from
     );
-    const toArea = this.mockStopAreas.find(area => 
+    const toArea = this.cachedSites.find(area => 
       area.name.toLowerCase().includes(to.toLowerCase()) || area.id === to
     );
 

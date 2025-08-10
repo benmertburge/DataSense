@@ -59,6 +59,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Transit data routes
+  app.get('/api/sites/search', isAuthenticated, async (req, res) => {
+    try {
+      const query = req.query.q as string;
+      if (!query || query.length < 2) {
+        return res.json([]);
+      }
+      
+      const sites = await transitService.searchSites(query);
+      res.json(sites);
+    } catch (error) {
+      console.error("Error searching sites:", error);
+      res.status(500).json({ message: "Failed to search sites" });
+    }
+  });
+
   // Journey planning routes
   app.post('/api/trips/search', isAuthenticated, async (req: any, res) => {
     try {
