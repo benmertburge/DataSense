@@ -211,7 +211,7 @@ export class TransitService {
     // Check category codes and names for accurate detection
     if (category === 'slt' || name.includes('spårväg') || name.includes('spårvagn') || name.includes('tram')) return "TRAM";
     if (category === 'jlt' || name.includes('tåg') || name.includes('train') || name.includes('pendeltåg')) return "TRAIN";
-    if (category.includes('tunnelbana') || category.includes('metro') || name.includes('metro')) return "METRO";
+    if (category === 'mlt' || category.includes('tunnelbana') || category.includes('metro') || name.includes('metro') || name.includes('tunnelbana')) return "METRO";
     if (category.includes('båt') || category.includes('ferry') || name.includes('ferry')) return "FERRY";
     
     return "BUS";
