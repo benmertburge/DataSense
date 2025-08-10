@@ -678,28 +678,56 @@ export class TransitService {
   }
 
   private convertResRobotLine(leg: any): Line {
-    const transportMode = leg.Product?.catIn || 'UNKNOWN';
-    const lineNumber = leg.Product?.line || leg.Product?.num || 'Unknown';
-    const lineName = leg.Product?.name || `${transportMode} ${lineNumber}`;
+    // FIX: Extract REAL data from ResRobot Product array
+    const product = Array.isArray(leg.Product) ? leg.Product[0] : leg.Product;
     
+    if (!product) {
+      return {
+        id: "transit_line",
+        number: "?",
+        mode: "TRAIN",
+        name: "Transit",
+        operatorId: "SL"
+      };
+    }
+    
+    const lineNumber = product.num || product.displayNumber || product.line || "?";
+    const operatorName = product.operatorInfo?.name || product.operator || "SL";
+    const transportCategory = product.catOut || product.catIn || "JLT";
+    
+    // Parse REAL Swedish transport names from ResRobot
+    let lineName = product.name || product.internalName || "";
+    
+    // Clean up the line name for display
+    if (lineName.includes("Länstrafik - Tåg")) {
+      lineName = `Pendeltåg ${lineNumber}`;
+    } else if (lineName.includes("T-bana")) {
+      lineName = `T${lineNumber}`;
+    } else if (!lineName || lineName === "Unknown") {
+      lineName = `${operatorName} ${lineNumber}`;
+    }
+    
+    // Determine transport mode from ResRobot categories
     let mode: "METRO" | "BUS" | "TRAIN" | "TRAM" | "FERRY" = "BUS";
     
-    if (transportMode.includes('METRO') || lineName.includes('T-bana') || lineName.startsWith('T')) {
-      mode = "METRO";
-    } else if (transportMode.includes('TRAIN') || lineName.includes('pendel') || lineName.startsWith('J')) {
+    if (transportCategory === "JLT" || lineName.includes("Pendeltåg") || lineName.includes("Länstrafik")) {
       mode = "TRAIN";
-    } else if (transportMode.includes('TRAM') || lineName.includes('spårvagn')) {
+    } else if (transportCategory === "JTB" || lineName.includes("T-bana")) {
+      mode = "METRO";
+    } else if (transportCategory === "JBU") {
+      mode = "BUS";
+    } else if (transportCategory === "JSP") {
       mode = "TRAM";
-    } else if (transportMode.includes('FERRY') || lineName.includes('båt')) {
+    } else if (transportCategory === "JSH") {
       mode = "FERRY";
     }
 
     return {
-      id: `L_${lineNumber}`,
+      id: product.lineId || `L_${lineNumber}`,
       number: lineNumber,
       mode,
       name: lineName,
-      operatorId: "SL"
+      operatorId: operatorName
     };
   }
 
