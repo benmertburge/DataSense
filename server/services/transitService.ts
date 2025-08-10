@@ -150,14 +150,33 @@ export class TransitService {
   }
 
   private determineStationType(name: string): "METROSTN" | "RAILWSTN" | "BUSTERM" {
-    const lowerName = name.toLowerCase();
-    if (lowerName.includes("centralstation") || lowerName.includes("central") || 
-        lowerName.includes("flemingsberg") || lowerName.includes("tumba")) {
+    const nameLower = name.toLowerCase();
+    
+    // Train stations (commuter train/pendeltåg stations)
+    if (nameLower.includes('station') && !nameLower.includes('t-bana') ||
+        nameLower.includes('central') || 
+        nameLower.includes('pendel') || 
+        nameLower.includes('commuter') ||
+        nameLower.includes('c ') || // Stockholm C
+        nameLower.includes('city') ||
+        nameLower.includes('järnväg') ||
+        nameLower.includes('rail')) {
       return "RAILWSTN";
     }
-    if (lowerName.includes("terminal") || lowerName.includes("busstation")) {
+    
+    // Metro stations (T-bana)
+    if (nameLower.includes('t-bana') || nameLower.includes('metro') ||
+        nameLower.includes('tunnelbana')) {
+      return "METROSTN";  
+    }
+    
+    // Bus terminals
+    if (nameLower.includes('terminal') || nameLower.includes('busstation') ||
+        nameLower.includes('busstop')) {
       return "BUSTERM";
     }
+    
+    // Default to metro for Stockholm city stations
     return "METROSTN";
   }
 
@@ -845,13 +864,7 @@ export class TransitService {
 
   async searchStopAreas(query: string): Promise<StopArea[]> {
     if (!query.trim()) return [];
-    
-    const filtered = this.mockStopAreas.filter(stop =>
-      stop.name.toLowerCase().includes(query.toLowerCase())
-    );
-    
-    // Return filtered results instead of throwing error
-    return filtered.slice(0, 10);
+    return this.searchSites(query);
   }
 
   async updateJourneyRealtime(journeyId: string): Promise<Partial<Itinerary>> {
@@ -865,8 +878,9 @@ export class TransitService {
     };
   }
 
-  getStopAreas(): StopArea[] {
-    return this.mockStopAreas;
+  async getStopAreas(): Promise<StopArea[]> {
+    await this.initializeDatabase();
+    return await db.select().from(stopAreas).limit(100);
   }
 
   getLines(): Line[] {
