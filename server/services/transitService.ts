@@ -206,12 +206,13 @@ export class TransitService {
     if (!product?.catOutS) return "BUS";
     
     const category = product.catOutS.toLowerCase();
+    const name = (product?.name || '').toLowerCase();
     
-    // Check for spårvagn/tram first since it's more specific than tåg
-    if (category.includes('spårvagn') || category.includes('spårväg') || category.includes('tram')) return "TRAM";
-    if (category.includes('tunnelbana') || category.includes('metro')) return "METRO";
-    if (category.includes('pendeltåg') || category.includes('tåg') || category.includes('train')) return "TRAIN";
-    if (category.includes('båt') || category.includes('ferry')) return "FERRY";
+    // Check category codes and names for accurate detection
+    if (category === 'slt' || name.includes('spårväg') || name.includes('spårvagn') || name.includes('tram')) return "TRAM";
+    if (category === 'jlt' || name.includes('tåg') || name.includes('train') || name.includes('pendeltåg')) return "TRAIN";
+    if (category.includes('tunnelbana') || category.includes('metro') || name.includes('metro')) return "METRO";
+    if (category.includes('båt') || category.includes('ferry') || name.includes('ferry')) return "FERRY";
     
     return "BUS";
   }
