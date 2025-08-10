@@ -95,14 +95,17 @@ export default function AlternativeRoutes() {
             <div className="flex items-center space-x-2 text-sm">
               {route.legs.filter((leg: any) => leg.kind === 'TRANSIT').map((leg: any, legIndex: number, transitLegs: any[]) => (
                 <div key={legIndex} className="flex items-center space-x-2">
-                  <div className="flex items-center space-x-1">
+                  <div className="flex items-center space-x-2">
                     <div 
-                      className="w-5 h-5 rounded text-white text-xs font-bold flex items-center justify-center"
+                      className="w-6 h-6 rounded text-white text-xs font-bold flex items-center justify-center"
                       style={{ backgroundColor: leg.line.color || '#666666' }}
                     >
                       {leg.line.number}
                     </div>
-                    <span className="text-sm">{leg.line.name}</span>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium">{leg.line.name}</span>
+                      <span className="text-xs text-gray-500">{leg.from.name} → {leg.to.name}</span>
+                    </div>
                   </div>
                   {legIndex < transitLegs.length - 1 && (
                     <ArrowRight className="h-3 w-3 text-gray-400" />

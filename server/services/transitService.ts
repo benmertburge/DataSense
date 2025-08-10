@@ -702,15 +702,26 @@ export class TransitService {
     
     if (productName.includes("Spårväg") || transportCategory === "JSP") {
       mode = "TRAM";
-      displayName = `Länstrafik - Spårväg ${lineNumber}`;
+      displayName = `Spårväg ${lineNumber}`;
       color = "#00A651"; // Green for trams
     } else if (productName.includes("Pendeltåg") || productName.includes("Länstrafik - Tåg") || transportCategory === "JLT") {
       mode = "TRAIN";
-      displayName = `Pendeltåg ${lineNumber}`;
+      // Map ResRobot line IDs to correct SL pendeltåg lines
+      const correctLineNumber = this.mapToPendeltågLine(lineNumber, leg);
+      displayName = `Pendeltåg ${correctLineNumber}`;
       color = "#9B59B6"; // Purple for pendeltåg
+      // Use correct line number for display
+      return {
+        id: product.lineId || `L_${correctLineNumber}`,
+        number: correctLineNumber,
+        mode,
+        name: displayName,
+        operatorId: "SL",
+        color
+      };
     } else if (productName.includes("T-bana") || transportCategory === "JTB") {
       mode = "METRO";
-      displayName = `T${lineNumber}`;
+      displayName = `T-bana ${lineNumber}`;
       // T-bana colors by line
       if (lineNumber === "17" || lineNumber === "18" || lineNumber === "19") color = "#00A651"; // Green
       else if (lineNumber === "13" || lineNumber === "14") color = "#E3000F"; // Red
@@ -723,6 +734,7 @@ export class TransitService {
       displayName = `${productName} ${lineNumber}`.trim();
     }
 
+    // Return for all modes (trains already returned above)
     return {
       id: product.lineId || `L_${lineNumber}`,
       number: lineNumber,
@@ -741,6 +753,32 @@ export class TransitService {
       .replace(/\s+station.*$/, '') // Remove "station" suffix
       .replace(/\s+Spårv.*$/, '') // Remove "Spårv" suffix
       .trim();
+  }
+
+  private mapToPendeltågLine(resRobotLineId: string, leg: any): string {
+    // Map ResRobot internal line IDs to correct SL pendeltåg line numbers
+    const origin = leg.Origin?.name || "";
+    const destination = leg.Destination?.name || "";
+    
+    // Route-based mapping for accuracy
+    if (origin.includes("Sundbyberg") || destination.includes("Sundbyberg")) {
+      return "43"; // Line 43 serves Sundbyberg
+    }
+    if (origin.includes("Flemingsberg") || destination.includes("Flemingsberg")) {
+      return "40"; // Line 40 serves Flemingsberg
+    }
+    if (origin.includes("Märsta") || destination.includes("Märsta")) {
+      return "42"; // Line 42 serves Märsta
+    }
+    if (origin.includes("Gnesta") || destination.includes("Gnesta")) {
+      return "35"; // Line 35 serves Gnesta
+    }
+    if (origin.includes("Södertälje") || destination.includes("Södertälje")) {
+      return "36"; // Line 36 serves Södertälje
+    }
+    
+    // Fallback to ResRobot ID if no specific mapping
+    return resRobotLineId;
   }
 
   private planBestRoute(from: StopArea, to: StopArea): {
