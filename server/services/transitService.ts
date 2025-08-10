@@ -67,8 +67,10 @@ export class TransitService {
     });
 
     if (dateTime) {
-      const timeStr = dateTime.toISOString().slice(0, 16).replace('T', ' ');
-      params.append('time', timeStr);
+      // ResRobot expects time as HH:MM and date as YYYY-MM-DD
+      const hours = dateTime.getHours().toString().padStart(2, '0');
+      const minutes = dateTime.getMinutes().toString().padStart(2, '0');
+      params.append('time', `${hours}:${minutes}`);
       params.append('date', dateTime.toISOString().slice(0, 10));
     }
 

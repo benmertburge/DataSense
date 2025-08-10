@@ -95,12 +95,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`ROUTES DEBUG: Search type: ${data.leaveAt ? 'departure' : 'arrival'}`);
       
       // Get station details
+      console.log(`Getting station details for: ${data.from.id} -> ${data.to.id}`);
       const fromStation = await transitService.getStopArea(data.from.id);
       const toStation = await transitService.getStopArea(data.to.id);
       
       if (!fromStation || !toStation) {
+        console.error(`Station lookup failed: from=${fromStation}, to=${toStation}`);
         throw new Error("Invalid stations selected");
       }
+      
+      console.log(`From station: ${fromStation.name} at ${fromStation.lat},${fromStation.lng}`);
+      console.log(`To station: ${toStation.name} at ${toStation.lat},${toStation.lng}`);
       
       // Use ResRobot API for real journey planning
       const routes = await transitService.searchTrips(
