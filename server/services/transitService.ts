@@ -350,20 +350,68 @@ export class TransitService {
   async searchStopAreas(query: string): Promise<StopArea[]> {
     console.log(`REAL API SEARCH: Searching for stations matching "${query}"`);
     
-    // Use trip search to find real stations - this API works with your key
     try {
-      const results = await this.searchStationsUsingTripAPI(query);
-      console.log(`REAL API SUCCESS: Found ${results.length} stations from live Swedish transport APIs`);
+      // Use ResRobot location.name API - THIS WORKS WITH YOUR KEY!
+      const apiKey = process.env.RESROBOT_API_KEY;
+      if (!apiKey) {
+        throw new Error("RESROBOT_API_KEY required");
+      }
+
+      const params = new URLSearchParams({
+        input: query,
+        format: 'json',
+        accessId: apiKey,
+        maxNo: '30'
+      });
+
+      const url = `${this.RESROBOT_API_BASE}/location.name?${params}`;
+      console.log(`Fetching real stations from ResRobot API...`);
       
-      // Also save discovered stations to database for future use
-      if (results.length > 0) {
-        await this.saveStationsToDatabase(results);
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`ResRobot API failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.errorCode) {
+        throw new Error(`ResRobot error: ${data.errorText}`);
+      }
+
+      const locations: StopArea[] = [];
+      
+      if (data.stopLocationOrCoordLocation) {
+        for (const item of data.stopLocationOrCoordLocation) {
+          if (item.StopLocation) {
+            const loc = item.StopLocation;
+            // Filter for Stockholm region
+            const lat = parseFloat(loc.lat);
+            const lng = parseFloat(loc.lon);
+            
+            if (lat >= 59.0 && lat <= 60.0 && lng >= 17.5 && lng <= 19.0) {
+              locations.push({
+                id: loc.extId || loc.id,
+                name: loc.name,
+                lat: loc.lat.toString(),
+                lng: loc.lon.toString()
+              });
+            }
+          }
+        }
       }
       
-      return results;
+      console.log(`REAL API SUCCESS: Found ${locations.length} Stockholm stations`);
+      
+      // Save to database
+      if (locations.length > 0) {
+        await this.saveStationsToDatabase(locations);
+      }
+      
+      return locations;
+      
     } catch (error) {
-      console.error("REAL API FAILED:", error);
-      throw new Error(`Cannot fetch real station data: ${error}`);
+      console.error("Station search failed:", error);
+      throw new Error(`Station search unavailable: ${error}`);
     }
   }
   
@@ -382,7 +430,7 @@ export class TransitService {
     }
   }
 
-  private async searchStationsUsingTripAPI(query: string): Promise<StopArea[]> {
+  private async DEPRECATED_searchStationsUsingTripAPI(query: string): Promise<StopArea[]> {
     const apiKey = process.env.RESROBOT_API_KEY;
     if (!apiKey) {
       throw new Error("RESROBOT_API_KEY required for real station data");
