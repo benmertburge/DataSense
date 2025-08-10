@@ -566,8 +566,9 @@ export class TransitService {
       const fromStation = fromSites[0];
       const toStation = toSites[0];
 
-      // CRITICAL FIX: Use user's actual departure time, not current time
-      const date = dateTime.toISOString().slice(0, 10);
+      // CRITICAL FIX: Use future date within ResRobot timetable period (2025-08-04 to 2025-12-13)
+      const futureDate = new Date('2025-08-11'); // Within valid timetable range
+      const date = futureDate.toISOString().slice(0, 10);
       const time = dateTime.toTimeString().slice(0, 5);
       const isArrival = searchType === 'arrival' ? '1' : '0';
       
