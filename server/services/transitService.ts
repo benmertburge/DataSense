@@ -156,6 +156,8 @@ export class TransitService {
         console.log(`DEBUG: ResRobot Line - num: ${product?.num}, line: ${product?.line}, name: ${product?.name}`);
         console.log(`DEBUG: ResRobot Times - Origin date: ${leg.Origin?.date}, time: ${leg.Origin?.time}`);
         console.log(`DEBUG: ResRobot Times - Destination date: ${leg.Destination?.date}, time: ${leg.Destination?.time}`);
+        console.log(`DEBUG: ResRobot Stations - From: ${leg.Origin?.name}, To: ${leg.Destination?.name}`);
+        console.log(`DEBUG: ResRobot Platforms - From track: ${leg.Origin?.track}, To track: ${leg.Destination?.track}`);
         
         legs.push({
           kind: 'TRANSIT',
