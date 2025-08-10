@@ -686,53 +686,128 @@ export class TransitService {
     transferWalk: number;
     delay: number;
   } {
-    // For Sundbyberg → Flemingsberg (your example)
-    if (from.name.includes("Sundbyberg") && to.name.includes("Flemingsberg")) {
+    console.log(`Planning route: ${from.name} → ${to.name}`);
+    
+    // Check for direct single-line metro connections first
+    const directLine = this.getDirectMetroConnection(from.name, to.name);
+    if (directLine) {
+      console.log(`Found direct metro connection: ${directLine.name}`);
       return {
-        direct: false,
-        viaHub: "T-Centralen",
-        hubId: "9004",
-        firstLine: this.mockLines.find(l => l.number === "11")!, // Blue line to T-Centralen
-        secondLine: this.mockLines.find(l => l.number === "35")!, // Commuter train to Flemingsberg
-        travelTime: 55,
-        firstLegTime: 15,
-        secondLegTime: 35,
-        transferWalk: 5,
-        delay: Math.floor(Math.random() * 10), // Random delay 0-10 min
+        direct: true,
+        line: directLine,
+        travelTime: this.estimateMetroTime(from.name, to.name),
+        transferWalk: 0,
+        delay: Math.floor(Math.random() * 3), // 0-3 min delay
       };
     }
     
-    // For routes involving T-Centralen
-    if (from.name.includes("T-Centralen") || to.name.includes("T-Centralen")) {
-      const otherStation = from.name.includes("T-Centralen") ? to : from;
-      const line = otherStation.type === "RAILWSTN" ? 
-        this.mockLines.find(l => l.mode === "TRAIN")! : 
-        this.mockLines.find(l => l.mode === "METRO")!;
-      
-      return {
-        direct: true,
-        line,
-        travelTime: 25,
-        transferWalk: 0,
-        delay: Math.floor(Math.random() * 5), // Random delay 0-5 min
-      };
+    // Check for commuter train connections
+    if (this.isCommuterTrainRoute(from.name, to.name)) {
+      const trainLine = this.mockLines.find(l => l.mode === "TRAIN" && l.number.startsWith("J"));
+      if (trainLine) {
+        console.log(`Found direct commuter train connection: ${trainLine.name}`);
+        return {
+          direct: true,
+          line: trainLine,
+          travelTime: this.estimateTrainTime(from.name, to.name),
+          transferWalk: 0,
+          delay: Math.floor(Math.random() * 5), // 0-5 min delay
+        };
+      }
     }
 
-    // Default: route via T-Centralen (most common for Stockholm)
+    // Multi-leg journey only if absolutely necessary
+    console.log(`Multi-leg journey required: ${from.name} → ${to.name}`);
     return {
       direct: false,
       viaHub: "T-Centralen", 
       hubId: "9004",
-      firstLine: this.mockLines.find(l => l.mode === "METRO" && l.number === "11")!,
-      secondLine: from.type === "RAILWSTN" || to.type === "RAILWSTN" ? 
-        this.mockLines.find(l => l.mode === "TRAIN")! : 
-        this.mockLines.find(l => l.mode === "METRO" && l.number === "13")!,
+      firstLine: this.getBestFirstLine(from.name),
+      secondLine: this.getBestSecondLine(to.name),
       travelTime: 45,
       firstLegTime: 20,
       secondLegTime: 20,
       transferWalk: 5,
-      delay: Math.floor(Math.random() * 8), // Random delay 0-8 min
+      delay: Math.floor(Math.random() * 8), // 0-8 min delay
     };
+  }
+
+  private getDirectMetroConnection(fromName: string, toName: string): Line | null {
+    // Real Stockholm T-bana direct connections (single line journeys)
+    const greenLineStations = [
+      'sundbyberg centrum', 'rissne', 'tensta', 'hjulsta', 'västra skogen',
+      'alvik', 'fridhemsplan', 'sankt eriksplan', 'odenplan', 'rådmansgatan',
+      't-centralen', 'gamla stan', 'slussen', 'medborgarplatsen', 'skanstull'
+    ];
+    
+    const blueLineStations = [
+      'kungsträdgården', 'östermalmstorg', 't-centralen', 'rådhuset',
+      'fridhemsplan', 'stadshagen', 'västra skogen', 'solna centrum', 'akalla'
+    ];
+    
+    const redLineStations = [
+      'norsborg', 'hallunda', 'alby', 'fittja', 'masmo', 't-centralen',
+      'östermalmstorg', 'universitetet', 'ropsten'
+    ];
+    
+    const fromLower = fromName.toLowerCase();
+    const toLower = toName.toLowerCase();
+    
+    // Check if both stations are on the same line
+    if (this.bothOnSameLine(fromLower, toLower, greenLineStations)) {
+      return this.mockLines.find(l => l.number === "T17") || null; // Green line
+    }
+    if (this.bothOnSameLine(fromLower, toLower, blueLineStations)) {
+      return this.mockLines.find(l => l.number === "T10") || null; // Blue line
+    }
+    if (this.bothOnSameLine(fromLower, toLower, redLineStations)) {
+      return this.mockLines.find(l => l.number === "T13") || null; // Red line
+    }
+    
+    return null;
+  }
+
+  private bothOnSameLine(from: string, to: string, stations: string[]): boolean {
+    const fromMatch = stations.some(station => from.includes(station) || station.includes(from.split(' ')[0]));
+    const toMatch = stations.some(station => to.includes(station) || station.includes(to.split(' ')[0]));
+    return fromMatch && toMatch;
+  }
+
+  private isCommuterTrainRoute(fromName: string, toName: string): boolean {
+    const commuterStations = [
+      'sundbyberg station', 'solna station', 'stockholm city', 'stockholm c',
+      'södermalm', 'flemingsberg', 'huddinge', 'tumba', 'södertälje'
+    ];
+    
+    const fromLower = fromName.toLowerCase();
+    const toLower = toName.toLowerCase();
+    
+    return commuterStations.some(station => fromLower.includes(station)) &&
+           commuterStations.some(station => toLower.includes(station));
+  }
+
+  private estimateMetroTime(from: string, to: string): number {
+    // Rough estimates for metro journey times in Stockholm
+    return 15 + Math.floor(Math.random() * 20); // 15-35 minutes
+  }
+
+  private estimateTrainTime(from: string, to: string): number {
+    // Commuter train times are generally longer
+    return 25 + Math.floor(Math.random() * 25); // 25-50 minutes
+  }
+
+  private getBestFirstLine(fromName: string): Line {
+    if (fromName.toLowerCase().includes('sundbyberg centrum')) {
+      return this.mockLines.find(l => l.number === "T17")!; // Green line from Sundbyberg centrum
+    }
+    return this.mockLines.find(l => l.mode === "METRO")!; // Default metro
+  }
+
+  private getBestSecondLine(toName: string): Line {
+    if (toName.toLowerCase().includes('flemingsberg')) {
+      return this.mockLines.find(l => l.mode === "TRAIN")!; // Commuter train to Flemingsberg
+    }
+    return this.mockLines.find(l => l.mode === "METRO")!; // Default metro
   }
 
   private getPlatform(station: StopArea, line: Line): string {
