@@ -8,16 +8,15 @@ export class TransitService {
   private readonly RESROBOT_API_BASE = 'https://api.resrobot.se/v2.1';
   private readonly TRAFIKLAB_REALTIME_API = 'https://realtime-api.trafiklab.se/v1';
   
-  // ResRobot transport product codes
+  // ResRobot transport product codes (bitmask values)
   private readonly PRODUCT_CODES = {
-    1: 'Regional train',
-    2: 'Express train',
-    4: 'Local train',
-    8: 'Metro',
-    16: 'Tram',
-    32: 'Bus',
-    64: 'Ferry',
-    128: 'Taxi'
+    2: 'Express train',     // Bit 1
+    4: 'Regional train',    // Bit 2  
+    8: 'Local train',       // Bit 3
+    16: 'Metro',            // Bit 4
+    32: 'Tram',             // Bit 5
+    64: 'Bus',              // Bit 6
+    128: 'Ferry'            // Bit 7
   };
   
   // ONLY REAL SWEDISH TRANSPORT DATA - NO MOCK DATA EVER
@@ -361,11 +360,29 @@ export class TransitService {
   
   private getTransportTypes(products: number): string[] {
     const types: string[] = [];
-    for (const [code, name] of Object.entries(this.PRODUCT_CODES)) {
-      if (products & parseInt(code)) {
-        types.push(name);
-      }
+    
+    // Special handling for common Stockholm station types
+    if (products === 254 || products === 252) {
+      // Major hub with all transport types
+      return ['Station hub'];
     }
+    
+    // Decode individual transport types
+    if (products & 2) types.push('Express train');
+    if (products & 4) types.push('Regional train');
+    if (products & 8) types.push('Local train');
+    if (products & 16) types.push('Metro');
+    if (products & 32) types.push('Tram');
+    if (products & 64) types.push('Bus');
+    if (products & 128) types.push('Ferry');
+    
+    // Simplify common combinations
+    if (types.length > 3) {
+      if (types.includes('Metro')) return ['Metro', 'Bus'];
+      if (types.includes('Local train')) return ['Train station'];
+      return ['Multi-modal'];
+    }
+    
     return types;
   }
   
