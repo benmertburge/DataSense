@@ -33,8 +33,8 @@ interface SLDeparture {
 }
 
 export class TransitService {
-  private readonly SL_API_BASE = "https://transport.integration.sl.se/v1";
-  private readonly TRAFIKLAB_API_BASE = "https://api.sl.se/api2";
+  private readonly SL_TRANSPORT_API = "https://transport.integration.sl.se/v1";
+  private readonly TRAFIKLAB_TYPEAHEAD_API = "https://journeyplanner.integration.sl.se/v1";
   private cachedSites: StopArea[] = [];
   private cacheExpiry: number = 0;
   private readonly CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
@@ -59,7 +59,7 @@ export class TransitService {
   private async fetchSLSites(): Promise<StopArea[]> {
     try {
       console.log("Fetching real SL station data...");
-      const response = await fetch(`${this.SL_API_BASE}/sites`);
+      const response = await fetch(`${this.SL_TRANSPORT_API}/sites`);
       
       if (!response.ok) {
         console.error("SL API failed, using fallback data");
@@ -199,66 +199,56 @@ export class TransitService {
   }
 
   private async syncFromTrafiklab(): Promise<void> {
-    console.log("Loading comprehensive Stockholm station data from Trafiklab...");
+    console.log("Loading Stockholm stations using the updated Trafiklab API...");
     
-    // Get ALL stations by searching with different methods
     const allStations = new Map<string, any>();
     
-    // Method 1: Get all stations with empty search
+    // Method 1: Use the correct Trafiklab typeahead endpoint
     try {
-      const response1 = await fetch(`https://api.sl.se/api2/typeahead.json?key=${process.env.TRAFIKLAB_API_KEY}&searchstring=&stationsonly=true&maxresults=1000`);
+      const response1 = await fetch(`${this.TRAFIKLAB_TYPEAHEAD_API}/typeahead.json?key=${process.env.TRAFIKLAB_API_KEY}&searchstring=&stationsonly=true&maxresults=1000`);
       if (response1.ok) {
         const data1 = await response1.json();
         const sites1 = data1.ResponseData || [];
         sites1.forEach((site: any) => {
-          if (site.SiteId) allStations.set(site.SiteId.toString(), site);
+          if (site.SiteId) {
+            // Convert SiteId from format like 300109001 to 9001
+            const convertedId = site.SiteId.toString().slice(3);
+            allStations.set(convertedId, { ...site, SiteId: convertedId });
+          }
         });
-        console.log(`Method 1: Found ${sites1.length} stations`);
+        console.log(`Trafiklab typeahead: Found ${sites1.length} stations`);
       }
     } catch (e) {
-      console.log("Method 1 failed, continuing...");
+      console.log("Trafiklab typeahead failed, continuing...");
     }
 
-    // Method 2: Search by major areas to get more stations
-    const searchTerms = ['stockholm', 'solna', 'huddinge', 'nacka', 'täby', 'sundbyberg', 'södermalm', 'norrmalm', 'östermalm', 'vasastan', 'söder', 'norr', 't-bana', 'pendel', 'metro', 'central', 'city'];
-    
-    for (const term of searchTerms) {
-      try {
-        const response = await fetch(`https://api.sl.se/api2/typeahead.json?key=${process.env.TRAFIKLAB_API_KEY}&searchstring=${encodeURIComponent(term)}&stationsonly=true&maxresults=1000`);
-        if (response.ok) {
-          const data = await response.json();
-          const sites = data.ResponseData || [];
-          sites.forEach((site: any) => {
-            if (site.SiteId) allStations.set(site.SiteId.toString(), site);
-          });
-        }
-        // Small delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 100));
-      } catch (e) {
-        console.log(`Search for "${term}" failed, continuing...`);
-      }
-    }
-
-    // Method 3: Try the Site Lookup API for comprehensive data
+    // Method 2: Use the SL Transport API (no key needed) - this gives us ALL stations
     try {
-      const siteResponse = await fetch(`https://api.sl.se/api2/typeahead.json?key=${process.env.TRAFIKLAB_API_KEY}&maxresults=2000`);
-      if (siteResponse.ok) {
-        const siteData = await siteResponse.json();
-        const sites = siteData.ResponseData || [];
-        sites.forEach((site: any) => {
-          if (site.SiteId) allStations.set(site.SiteId.toString(), site);
+      console.log("Fetching from SL Transport API...");
+      const response2 = await fetch(`${this.SL_TRANSPORT_API}/sites`);
+      if (response2.ok) {
+        const sites: SLSite[] = await response2.json();
+        sites.forEach((site: SLSite) => {
+          if (site.id && site.name) {
+            allStations.set(site.id.toString(), {
+              SiteId: site.id,
+              Name: site.name,
+              X: site.lon,
+              Y: site.lat
+            });
+          }
         });
-        console.log(`Method 3: Additional ${sites.length} total entries processed`);
+        console.log(`SL Transport API: Found ${sites.length} stations`);
       }
     } catch (e) {
-      console.log("Method 3 failed, continuing...");
+      console.log("SL Transport API failed, continuing...");
     }
 
     const totalStations = Array.from(allStations.values());
     console.log(`Total unique stations found: ${totalStations.length}`);
 
     if (totalStations.length === 0) {
-      throw new Error("No stations found from Trafiklab API");
+      throw new Error("No stations found from any API");
     }
 
     // Insert all stations in batches
@@ -291,11 +281,11 @@ export class TransitService {
       }
     }
 
-    console.log(`Successfully synced ${insertedCount} stations from Trafiklab to database`);
+    console.log(`Successfully synced ${insertedCount} stations to database`);
   }
 
   private async syncFromSLTransport(): Promise<void> {
-    const response = await fetch(`${this.SL_API_BASE}/sites`);
+    const response = await fetch(`${this.SL_TRANSPORT_API}/sites`);
     if (!response.ok) {
       throw new Error(`SL Transport API failed: ${response.status}`);
     }
