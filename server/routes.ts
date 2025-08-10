@@ -94,10 +94,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`ROUTES DEBUG: Hours/Minutes: ${stockholmDateTime.getHours()}:${stockholmDateTime.getMinutes()}`);
       console.log(`ROUTES DEBUG: Search type: ${data.leaveAt ? 'departure' : 'arrival'}`);
       
-      // Get station details
-      console.log(`Getting station details for: ${data.from.id} -> ${data.to.id}`);
-      const fromStation = await transitService.getStopArea(data.from.id);
-      const toStation = await transitService.getStopArea(data.to.id);
+      // Get station details - handle both string and object formats
+      const fromId = typeof data.from === 'string' ? data.from : data.from.id;
+      const toId = typeof data.to === 'string' ? data.to : data.to.id;
+      
+      console.log(`Getting station details for: ${fromId} -> ${toId}`);
+      const fromStation = await transitService.getStopArea(fromId);
+      const toStation = await transitService.getStopArea(toId);
       
       if (!fromStation || !toStation) {
         console.error(`Station lookup failed: from=${fromStation}, to=${toStation}`);

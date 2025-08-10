@@ -98,13 +98,15 @@ export default function JourneyPlannerForm() {
   };
 
   const selectFromStation = (station: Station) => {
-    form.setValue('from', station.name);
+    // Store the station object with id and name
+    form.setValue('from', { id: station.id, name: station.name });
     setFromQuery(station.name);
     setShowFromDropdown(false);
   };
 
   const selectToStation = (station: Station) => {
-    form.setValue('to', station.name);
+    // Store the station object with id and name
+    form.setValue('to', { id: station.id, name: station.name });
     setToQuery(station.name);
     setShowToDropdown(false);
   };
@@ -146,8 +148,9 @@ export default function JourneyPlannerForm() {
                           ref={fromInputRef}
                           placeholder="Stockholm Odenplan"
                           className="pl-8 pr-10"
+                          value={typeof field.value === 'object' ? field.value.name : field.value}
                           onChange={(e) => {
-                            field.onChange(e);
+                            field.onChange(e.target.value);
                             setFromQuery(e.target.value);
                             setShowFromDropdown(e.target.value.length >= 2);
                           }}
@@ -218,8 +221,9 @@ export default function JourneyPlannerForm() {
                           ref={toInputRef}
                           placeholder="Arlanda Airport"
                           className="pl-8 pr-10"
+                          value={typeof field.value === 'object' ? field.value.name : field.value}
                           onChange={(e) => {
-                            field.onChange(e);
+                            field.onChange(e.target.value);
                             setToQuery(e.target.value);
                             setShowToDropdown(e.target.value.length >= 2);
                           }}

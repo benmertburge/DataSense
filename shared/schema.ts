@@ -188,8 +188,20 @@ export type CompensationCase = typeof compensationCases.$inferSelect;
 export type InsertCompensationCase = z.infer<typeof insertCompensationCaseSchema>;
 
 export const journeyPlannerSchema = z.object({
-  from: z.string().min(1, "Origin is required"),
-  to: z.string().min(1, "Destination is required"),
+  from: z.union([
+    z.string().min(1, "Origin is required"),
+    z.object({
+      id: z.string(),
+      name: z.string()
+    })
+  ]),
+  to: z.union([
+    z.string().min(1, "Destination is required"),
+    z.object({
+      id: z.string(),
+      name: z.string()
+    })
+  ]),
   date: z.string(),
   time: z.string(),
   leaveAt: z.boolean().default(true),
