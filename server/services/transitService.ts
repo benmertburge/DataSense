@@ -35,6 +35,7 @@ interface SLDeparture {
 export class TransitService {
   private readonly SL_JOURNEY_API = "https://journeyplanner.integration.sl.se/v2";
   private readonly SL_TRANSPORT_API = "https://transport.integration.sl.se/v1";
+  private readonly SL_REALTIME_API = "https://realtime-api.trafiklab.se/v1";
   private cachedSites: StopArea[] = [];
   private cacheExpiry: number = 0;
   private readonly CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
@@ -876,15 +877,23 @@ export class TransitService {
             }
           });
           
-          // CRITICAL FIX: The issue is timezone! SL API needs LOCAL Stockholm time
-          // User selects 20:31 (8:31 PM) but toISOString() converts to UTC
-          const stockholmTime = new Date(dateTime.getTime() + (dateTime.getTimezoneOffset() * 60000) + (2 * 3600000)); // CET+1
-          const slDate = stockholmTime.toISOString().split('T')[0]; // YYYY-MM-DD  
-          const slTime = stockholmTime.toISOString().split('T')[1].substring(0, 5); // HH:MM
+          // CRITICAL FIX: Use proper Stockholm timezone formatting
+          // Convert to Stockholm local time (Europe/Stockholm timezone)
+          const stockholmTime = new Intl.DateTimeFormat('sv-SE', {
+            timeZone: 'Europe/Stockholm',
+            year: 'numeric',
+            month: '2-digit', 
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+          }).formatToParts(dateTime);
           
-          console.log(`DEBUG: User input dateTime: ${dateTime.toString()}`);
-          console.log(`DEBUG: Stockholm local time: ${stockholmTime.toISOString()}`);
-          console.log(`DEBUG: SL API date: ${slDate}, time: ${slTime}`);
+          const slDate = `${stockholmTime.find(p => p.type === 'year')?.value}-${stockholmTime.find(p => p.type === 'month')?.value}-${stockholmTime.find(p => p.type === 'day')?.value}`;
+          const slTime = `${stockholmTime.find(p => p.type === 'hour')?.value}:${stockholmTime.find(p => p.type === 'minute')?.value}`;
+          
+          console.log(`DEBUG: User input: ${dateTime.toString()}`);
+          console.log(`DEBUG: Stockholm local time: ${slDate} ${slTime}`);
           
           queryParams.append('date', slDate);
           queryParams.append('time', slTime);
@@ -1697,19 +1706,111 @@ export class TransitService {
     return ["A", "B", "C"][Math.floor(Math.random() * 3)];
   }
 
-  async getDepartures(areaId: string): Promise<Departure[]> {
+  // Get real-time departures using Trafiklab Timetables API
+  async getDepartures(areaId: string, dateTime?: Date): Promise<Departure[]> {
+    try {
+      // Use Trafiklab Timetables API for real departure data
+      const timeParam = dateTime ? this.formatTrafilabTime(dateTime) : '';
+      const url = `${this.SL_REALTIME_API}/departures/${areaId}${timeParam}?key=${process.env.TRAFIKLAB_API_KEY}`;
+      
+      console.log(`Fetching real departures from: ${url}`);
+      
+      const response = await fetch(url);
+      if (!response.ok) {
+        console.log(`Trafiklab Timetables API failed: ${response.status}`);
+        return this.getFallbackDepartures(areaId);
+      }
+      
+      const data = await response.json();
+      console.log(`Trafiklab returned ${data.departures?.length || 0} departures`);
+      
+      if (!data.departures || !Array.isArray(data.departures)) {
+        return this.getFallbackDepartures(areaId);
+      }
+      
+      // Convert Trafiklab departures to our format
+      return data.departures.slice(0, 10).map((dep: any, index: number) => ({
+        stopAreaId: areaId,
+        line: {
+          id: `TL_${dep.route?.designation || 'unknown'}`,
+          number: dep.route?.designation || dep.route?.name || 'Unknown',
+          mode: this.mapTransportMode(dep.route?.transport_mode),
+          name: dep.route?.name || dep.route?.designation || 'Unknown Line',
+          operatorId: dep.agency?.name || 'Unknown',
+          color: this.getLineColor(dep.route?.transport_mode, dep.route?.designation)
+        },
+        journeyId: `TL_${dep.trip?.trip_id || Date.now()}_${index}`,
+        directionText: dep.route?.direction || dep.route?.destination?.name || 'Unknown Direction',
+        plannedTime: dep.scheduled,
+        expectedTime: dep.realtime || dep.scheduled,
+        state: dep.canceled ? "CANCELLED" : (dep.delay > 0 ? "EXPECTED" : "NORMALPROGRESS"),
+        platform: dep.scheduled_platform?.designation || dep.realtime_platform?.designation || 'Unknown',
+        delayMinutes: Math.floor((dep.delay || 0) / 60) // Convert seconds to minutes
+      }));
+      
+    } catch (error) {
+      console.error("Error fetching real departures:", error);
+      return this.getFallbackDepartures(areaId);
+    }
+  }
+  
+  private formatTrafilabTime(dateTime: Date): string {
+    // Format time for Trafiklab API: /YYYY-MM-DDTHH:mm
+    const stockholmTime = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'Europe/Stockholm',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).formatToParts(dateTime);
+    
+    const date = `${stockholmTime.find(p => p.type === 'year')?.value}-${stockholmTime.find(p => p.type === 'month')?.value}-${stockholmTime.find(p => p.type === 'day')?.value}`;
+    const time = `${stockholmTime.find(p => p.type === 'hour')?.value}:${stockholmTime.find(p => p.type === 'minute')?.value}`;
+    
+    return `/${date}T${time}`;
+  }
+  
+  private mapTransportMode(mode: string): "METRO" | "TRAIN" | "BUS" | "TRAM" | "FERRY" {
+    if (!mode) return "BUS";
+    
+    switch (mode.toUpperCase()) {
+      case 'METRO': case 'SUBWAY': return "METRO";
+      case 'TRAIN': case 'RAIL': return "TRAIN"; 
+      case 'BUS': return "BUS";
+      case 'TRAM': case 'LIGHT_RAIL': return "TRAM";
+      case 'FERRY': case 'BOAT': return "FERRY";
+      default: return "BUS";
+    }
+  }
+  
+  private getLineColor(transportMode: string, designation: string): string {
+    const mode = this.mapTransportMode(transportMode);
+    
+    switch (mode) {
+      case "METRO": return "#0089CA"; // SL Blue
+      case "TRAIN": return "#9B59B6"; // Purple for trains
+      case "BUS": return "#E3000F"; // SL Red
+      case "TRAM": return "#00A651"; // Green
+      case "FERRY": return "#0089CA"; // Blue
+      default: return "#666666"; // Gray fallback
+    }
+  }
+  
+  private getFallbackDepartures(areaId: string): Departure[] {
     const departures: Departure[] = [];
     const now = new Date();
 
-    // Generate mock departures for the next hour
+    // Generate mock departures only as fallback
     for (let i = 0; i < 6; i++) {
-      const departureTime = new Date(now.getTime() + i * 10 * 60000); // Every 10 minutes
+      const departureTime = new Date(now.getTime() + i * 10 * 60000);
       const expectedTime = new Date(departureTime.getTime() + (Math.random() < 0.3 ? Math.floor(Math.random() * 10) * 60000 : 0));
       
       departures.push({
         stopAreaId: areaId,
         line: this.mockLines[Math.floor(Math.random() * this.mockLines.length)],
-        journeyId: `J_${Date.now()}_${i}`,
+        journeyId: `FALLBACK_${Date.now()}_${i}`,
         directionText: ["Arlanda Airport", "Kungsträdgården", "Nynäshamn", "Bålsta"][Math.floor(Math.random() * 4)],
         plannedTime: departureTime.toISOString(),
         expectedTime: expectedTime.toISOString(),
