@@ -229,11 +229,11 @@ export class TransitService {
     const mode = this.mapResRobotProductToMode(product);
     
     switch (mode) {
-      case "METRO": return "#0089CA"; // SL Blue
-      case "TRAIN": return "#9B59B6"; // Purple
-      case "BUS": return "#E3000F"; // SL Red
-      case "TRAM": return "#00A651"; // Green
-      case "FERRY": return "#0089CA"; // Blue
+      case "METRO": return "#87CEEB"; // Light blue for metro/tunnelbana
+      case "TRAIN": return "#FF69B4"; // Pink for pendeltåg/trains
+      case "BUS": return "#000000"; // Black for buses
+      case "TRAM": return "#FFA500"; // Orange for trams/spårvagn
+      case "FERRY": return "#20B2AA"; // Teal for ferries
       default: return "#666666";
     }
   }
