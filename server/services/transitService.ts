@@ -152,19 +152,51 @@ export class TransitService {
       }
     }
 
+    // Get overall trip departure and arrival times
+    const firstTransitLeg = legs.find(leg => leg.type === 'transit') as any;
+    const lastTransitLeg = legs.reverse().find(leg => leg.type === 'transit') as any;
+    legs.reverse(); // restore original order
+    
     return {
       id: `ResRobot_${Date.now()}_${index}`,
-      legs,
-      duration: this.parseDuration(resRobotTrip.duration || '00:00:00'),
-      transfers: legs.filter(leg => leg.type === 'transit').length - 1,
-      departure: legs[0]?.type === 'transit' 
-        ? (legs[0] as TransitLeg).departureTime 
-        : new Date().toISOString(),
-      arrival: legs[legs.length - 1]?.type === 'transit'
-        ? (legs[legs.length - 1] as TransitLeg).arrivalTime
-        : new Date().toISOString(),
-      co2: 0 // Calculate if needed
-    };
+      legs: legs.map(leg => {
+        if (leg.type === 'walk') {
+          return {
+            kind: 'WALK',
+            fromAreaId: 'unknown',
+            toAreaId: 'unknown', 
+            durationMinutes: leg.duration || 5
+          } as WalkLeg;
+        } else {
+          return {
+            kind: 'TRANSIT',
+            line: {
+              id: leg.line.id,
+              number: leg.line.number,
+              mode: leg.line.mode,
+              name: leg.line.name,
+              operatorId: leg.line.operatorId,
+              color: leg.line.color
+            },
+            journeyId: leg.line.id,
+            from: {
+              areaId: 'unknown',
+              name: leg.from.name,
+              platform: leg.from.platform
+            },
+            to: {
+              areaId: 'unknown', 
+              name: leg.to.name,
+              platform: leg.to.platform
+            },
+            plannedDeparture: leg.departureTime,
+            plannedArrival: leg.arrivalTime
+          } as TransitLeg;
+        }
+      }),
+      plannedDeparture: firstTransitLeg?.departureTime || new Date().toISOString(),
+      plannedArrival: lastTransitLeg?.arrivalTime || new Date().toISOString(),
+    } as Itinerary;
   }
 
   private mapResRobotProductToMode(product: any): "METRO" | "BUS" | "TRAIN" | "TRAM" | "FERRY" {
