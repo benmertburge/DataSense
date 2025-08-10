@@ -16,12 +16,12 @@ export default function CurrentJourney() {
 
   if (isLoading) {
     return (
-      <Card className="shadow-sm border border-gray-200 mb-6">
+      <Card className="shadow-sm border border-gray-200 dark:border-gray-700 mb-6 bg-white dark:bg-gray-800">
         <CardContent className="p-6">
           <div className="animate-pulse">
-            <div className="h-4 bg-gray-200 rounded w-1/4 mb-4"></div>
-            <div className="h-8 bg-gray-200 rounded w-3/4 mb-2"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+            <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-1/4 mb-4"></div>
+            <div className="h-8 bg-gray-200 dark:bg-gray-600 rounded w-3/4 mb-2"></div>
+            <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-1/2"></div>
           </div>
         </CardContent>
       </Card>
@@ -30,11 +30,11 @@ export default function CurrentJourney() {
 
   if (!activeJourney) {
     return (
-      <Card className="shadow-sm border border-gray-200 mb-6">
+      <Card className="shadow-sm border border-gray-200 dark:border-gray-700 mb-6 bg-white dark:bg-gray-800">
         <CardContent className="p-6 text-center">
-          <div className="text-gray-500">
+          <div className="text-gray-500 dark:text-gray-400">
             <Route className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <h3 className="font-medium mb-2">No Active Journey</h3>
+            <h3 className="font-medium mb-2 text-gray-900 dark:text-white">No Active Journey</h3>
             <p className="text-sm">Plan a journey to start monitoring delays and receive alerts</p>
           </div>
         </CardContent>
@@ -67,7 +67,7 @@ export default function CurrentJourney() {
   };
 
   return (
-    <Card className="shadow-sm border border-gray-200 mb-6">
+    <Card className="shadow-sm border border-gray-200 dark:border-gray-700 mb-6 bg-white dark:bg-gray-800">
       <CardHeader className="border-b border-gray-200">
         <div className="flex justify-between items-center mb-4">
           <CardTitle>Current Journey</CardTitle>

@@ -11,12 +11,12 @@ export default function ServiceAlerts() {
 
   if (isLoading) {
     return (
-      <Card className="shadow-sm border border-gray-200">
+      <Card className="shadow-sm border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
         <CardContent className="p-6">
           <div className="animate-pulse space-y-4">
-            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-            <div className="h-16 bg-gray-200 rounded"></div>
-            <div className="h-16 bg-gray-200 rounded"></div>
+            <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-1/2"></div>
+            <div className="h-16 bg-gray-200 dark:bg-gray-600 rounded"></div>
+            <div className="h-16 bg-gray-200 dark:bg-gray-600 rounded"></div>
           </div>
         </CardContent>
       </Card>
@@ -89,9 +89,9 @@ export default function ServiceAlerts() {
   };
 
   return (
-    <Card className="shadow-sm border border-gray-200">
-      <CardHeader className="border-b border-gray-200">
-        <CardTitle className="flex items-center">
+    <Card className="shadow-sm border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+      <CardHeader className="border-b border-gray-200 dark:border-gray-700">
+        <CardTitle className="flex items-center text-gray-900 dark:text-white">
           <AlertTriangle className="text-warning-amber mr-2" />
           Service Alerts
         </CardTitle>

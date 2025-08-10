@@ -24,12 +24,12 @@ export default function CompensationTracker() {
 
   if (isLoading) {
     return (
-      <Card className="shadow-sm border border-gray-200 mb-6">
+      <Card className="shadow-sm border border-gray-200 dark:border-gray-700 mb-6 bg-white dark:bg-gray-800">
         <CardContent className="p-6">
           <div className="animate-pulse space-y-4">
-            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-            <div className="h-8 bg-gray-200 rounded"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+            <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-3/4"></div>
+            <div className="h-8 bg-gray-200 dark:bg-gray-600 rounded"></div>
+            <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-1/2"></div>
           </div>
         </CardContent>
       </Card>
@@ -61,10 +61,10 @@ export default function CompensationTracker() {
 
   return (
     <>
-      <Card className="shadow-sm border border-gray-200 mb-6">
+      <Card className="shadow-sm border border-gray-200 dark:border-gray-700 mb-6 bg-white dark:bg-gray-800">
         <CardHeader>
-          <CardTitle className="flex items-center">
-            <DollarSign className="text-green-600 mr-2" />
+          <CardTitle className="flex items-center text-gray-900 dark:text-white">
+            <DollarSign className="text-green-600 dark:text-green-400 mr-2" />
             Compensation Tracker
           </CardTitle>
         </CardHeader>
