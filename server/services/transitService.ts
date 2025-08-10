@@ -48,7 +48,7 @@ export class TransitService {
     { id: "L5", number: "17", mode: "METRO", name: "T17 Åkeshov-Skarpnäck", operatorId: "SL" },
     { id: "L6", number: "18", mode: "METRO", name: "T18 Alvik-Farsta strand", operatorId: "SL" },
     { id: "L7", number: "19", mode: "METRO", name: "T19 Hässelby strand-Hagsätra", operatorId: "SL" },
-    { id: "L8", number: "J35", mode: "TRAIN", name: "Commuter train towards Södertälje", operatorId: "SL" },
+    { id: "L8", number: "J35", mode: "TRAIN", name: "Commuter train", operatorId: "SL" },
     { id: "L9", number: "J36", mode: "TRAIN", name: "Commuter train towards Nynäshamn", operatorId: "SL" },
     { id: "L10", number: "J38", mode: "TRAIN", name: "Commuter train towards Bålsta", operatorId: "SL" },
     { id: "L11", number: "AE", mode: "TRAIN", name: "Arlanda Express", operatorId: "AE" },
@@ -152,32 +152,34 @@ export class TransitService {
   private determineStationType(name: string): "METROSTN" | "RAILWSTN" | "BUSTERM" {
     const nameLower = name.toLowerCase();
     
-    // Train stations (commuter train/pendeltåg stations)
-    if (nameLower.includes('station') && !nameLower.includes('t-bana') ||
+    // CRITICAL FIX: Train stations FIRST to override metro default
+    if (nameLower.includes('station') || 
         nameLower.includes('central') || 
-        nameLower.includes('pendel') || 
-        nameLower.includes('commuter') ||
-        nameLower.includes('c ') || // Stockholm C
+        nameLower.includes('flemingsberg') ||
+        nameLower.includes('sundbyberg') ||
+        nameLower.includes('solna') ||
+        nameLower.includes('västerås') ||
+        nameLower.includes('uppsala') ||
         nameLower.includes('city') ||
-        nameLower.includes('järnväg') ||
-        nameLower.includes('rail')) {
+        nameLower.includes(' c') ||
+        nameLower.endsWith(' c') ||
+        nameLower.includes('pendeltåg') ||
+        nameLower.includes('commuter')) {
       return "RAILWSTN";
     }
     
-    // Metro stations (T-bana)
-    if (nameLower.includes('t-bana') || nameLower.includes('metro') ||
-        nameLower.includes('tunnelbana')) {
+    // Metro stations (T-bana) - must come AFTER train check
+    if (nameLower.includes('t-bana') || nameLower.includes('tunnelbana')) {
       return "METROSTN";  
     }
     
     // Bus terminals
-    if (nameLower.includes('terminal') || nameLower.includes('busstation') ||
-        nameLower.includes('busstop')) {
+    if (nameLower.includes('terminal') || nameLower.includes('busstation')) {
       return "BUSTERM";
     }
     
-    // Default to metro for Stockholm city stations
-    return "METROSTN";
+    // Default to train for unknown stations to ensure pendeltåg visibility
+    return "RAILWSTN";
   }
 
   private async initializeDatabase(): Promise<void> {
@@ -457,7 +459,7 @@ export class TransitService {
         kind: "TRANSIT",
         line: route.line!,
         journeyId: `J_${Date.now()}_${route.line!.number}`,
-        directionText: to.name,
+        directionText: this.getCorrectDirection(from.name, to.name, route.line!),
         from: { areaId: from.id, name: from.name, platform: this.getPlatform(from, route.line!) },
         to: { areaId: to.id, name: to.name, platform: this.getPlatform(to, route.line!) },
         plannedDeparture: new Date(currentTime.getTime() + timeOffset * 60000).toISOString(),
@@ -502,7 +504,7 @@ export class TransitService {
         kind: "TRANSIT",
         line: route.secondLine!,
         journeyId: `J_${Date.now()}_${route.secondLine!.number}`,
-        directionText: to.name,
+        directionText: this.getCorrectDirection(route.viaHub!, to.name, route.secondLine!),
         from: { areaId: route.hubId!, name: route.viaHub!, platform: this.getPlatform({ id: route.hubId! } as StopArea, route.secondLine!) },
         to: { areaId: to.id, name: to.name, platform: this.getPlatform(to, route.secondLine!) },
         plannedDeparture: new Date(currentTime.getTime() + 2 * 60000).toISOString(), // 2 min connection time
@@ -557,7 +559,7 @@ export class TransitService {
       const fromStation = fromSites[0];
       const toStation = toSites[0];
 
-      // Format for ResRobot API
+      // CRITICAL FIX: Use user's actual departure time, not current time
       const date = dateTime.toISOString().slice(0, 10);
       const time = dateTime.toTimeString().slice(0, 5);
       const isArrival = searchType === 'arrival' ? '1' : '0';
@@ -885,6 +887,57 @@ export class TransitService {
 
   getLines(): Line[] {
     return this.mockLines;
+  }
+
+  private getCorrectDirection(fromName: string, toName: string, line: Line): string {
+    const fromLower = fromName.toLowerCase();
+    const toLower = toName.toLowerCase();
+    
+    // For commuter trains (J-lines), determine correct terminal direction
+    if (line.mode === "TRAIN" && line.number.startsWith("J")) {
+      
+      // J35 line: Södertälje Syd ↔ Uppsala via Stockholm C
+      if (line.number === "J35") {
+        // Going towards Stockholm City from southern stations
+        if (fromLower.includes('flemingsberg') || fromLower.includes('huddinge') || 
+            fromLower.includes('tumba') || fromLower.includes('södertälje')) {
+          return "towards Stockholm City";
+        }
+        // Going towards Uppsala from Stockholm or points north  
+        else if (fromLower.includes('stockholm') || fromLower.includes('solna') ||
+                 fromLower.includes('uplands väsby') || fromLower.includes('märsta')) {
+          return "towards Uppsala";
+        }
+        // Going towards Södertälje from Stockholm/north
+        else if (toLower.includes('flemingsberg') || toLower.includes('södertälje') ||
+                 toLower.includes('tumba') || toLower.includes('huddinge')) {
+          return "towards Södertälje";
+        }
+      }
+      
+      // J36: Stockholm C ↔ Nynäshamn  
+      if (line.number === "J36") {
+        if (fromLower.includes('stockholm') || fromLower.includes('city')) {
+          return "towards Nynäshamn";
+        } else {
+          return "towards Stockholm City";
+        }
+      }
+      
+      // Default to destination for other trains
+      return `towards ${toName}`;
+    }
+    
+    // For metro lines, use standard terminal directions
+    if (line.mode === "METRO") {
+      // Use actual T-bana terminal directions based on line
+      if (line.number === "T10" || line.number === "T11") {
+        return toLower.includes('kungsträdgården') ? "towards Kungsträdgården" : "towards Hjulsta";
+      }
+    }
+    
+    // Default fallback
+    return `towards ${toName}`;
   }
 }
 
