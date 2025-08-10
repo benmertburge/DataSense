@@ -158,7 +158,7 @@ export default function JourneyPlannerForm() {
                           {...field}
                           ref={fromInputRef}
                           placeholder="Stockholm Odenplan"
-                          className="pl-8 pr-10"
+                          className="pl-8 pr-10 bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
                           value={fromQuery}
                           onChange={(e) => {
                             const value = e.target.value;
@@ -233,7 +233,7 @@ export default function JourneyPlannerForm() {
                           {...field}
                           ref={toInputRef}
                           placeholder="Arlanda Airport"
-                          className="pl-8 pr-10"
+                          className="pl-8 pr-10 bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
                           value={toQuery}
                           onChange={(e) => {
                             const value = e.target.value;
@@ -289,9 +289,9 @@ export default function JourneyPlannerForm() {
                   name="date"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Date</FormLabel>
+                      <FormLabel className="text-gray-900 dark:text-white">Date</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <Input type="date" {...field} className="bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -303,9 +303,9 @@ export default function JourneyPlannerForm() {
                   name="time"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Time</FormLabel>
+                      <FormLabel className="text-gray-900 dark:text-white">Time</FormLabel>
                       <FormControl>
-                        <Input type="time" {...field} />
+                        <Input type="time" {...field} className="bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -313,7 +313,7 @@ export default function JourneyPlannerForm() {
                 />
               </div>
 
-              <div className="flex bg-gray-100 rounded-lg p-1">
+              <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
                 <Button
                   type="button"
                   variant={leaveAt ? "default" : "ghost"}
