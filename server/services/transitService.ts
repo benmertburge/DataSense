@@ -358,27 +358,44 @@ export class TransitService {
     return this.searchStopAreas(query);
   }
   
-  private getTransportTypesFromProductCodes(productAtStop: any[]): string[] {
-    if (!productAtStop || productAtStop.length === 0) return [];
-    
+  private getTransportTypesFromName(stationName: string): string[] {
+    const name = stationName.toLowerCase();
     const types: string[] = [];
     
-    // Map ResRobot cls codes to transport types
-    for (const product of productAtStop) {
-      const cls = product.cls;
-      switch(cls) {
-        case "1": types.push("High-speed train"); break;
-        case "2": types.push("Express train"); break;
-        case "4": types.push("Regional train"); break;
-        case "8": types.push("Metro"); break;
-        case "16": types.push("Tram"); break;
-        case "32": types.push("Bus"); break;
-        case "64": types.push("Ferry"); break;
-        case "128": types.push("Taxi"); break;
+    // Identify transport types from station name patterns
+    if (name.includes('t-bana') || name.includes('tunnelbana')) {
+      types.push('Metro');
+    }
+    if (name.includes('station') && !name.includes('t-bana')) {
+      types.push('Train');
+    }
+    if (name.includes('centralstation') || name.includes('central')) {
+      types.push('Train', 'Metro', 'Bus');
+    }
+    if (name.includes('torg')) {
+      types.push('Bus');
+      if (name.includes('sundbyberg')) types.push('Tram'); // Sundbybergs torg has tram
+    }
+    if (name.includes('centrum') && !name.includes('station')) {
+      if (name.includes('t-bana')) {
+        types.push('Metro');
+      } else {
+        types.push('Bus');
       }
     }
+    if (name.includes('pendeltåg')) {
+      types.push('Commuter train');
+    }
+    if (name.includes('spårvagn') || name.includes('tvärbanan')) {
+      types.push('Tram');
+    }
     
-    return [...new Set(types)]; // Remove duplicates
+    // If no specific pattern found, check for general bus stops
+    if (types.length === 0 && !name.includes('station') && !name.includes('t-bana')) {
+      types.push('Bus');
+    }
+    
+    return [...new Set(types)];
   }
   
   async getStopArea(id: string): Promise<StopArea | undefined> {
@@ -460,8 +477,8 @@ export class TransitService {
             const lng = parseFloat(loc.lon);
             
             if (lat >= 59.0 && lat <= 60.0 && lng >= 17.5 && lng <= 19.0) {
-              // Get ACTUAL transport types from the API's productAtStop data
-              const transportTypes = this.getTransportTypesFromProductCodes(loc.productAtStop || []);
+              // Derive transport types from station name (ResRobot productAtStop data is unreliable)
+              const transportTypes = this.getTransportTypesFromName(loc.name);
               const typeLabel = transportTypes.length > 0 ? ` (${transportTypes.join(', ')})` : '';
               
               locations.push({
