@@ -721,8 +721,9 @@ export class TransitService {
     // REORDERED: Check COMMUTER TRAIN connections FIRST before metro
     // This ensures Sundbyberg→Stockholm City uses pendeltåg, not T-bana
     
-    // USE ONLY REAL DATA: Remove fake route planning and use ResRobot API exclusively
-    throw new Error("Route planning disabled - using ResRobot API only for authentic Swedish transport data");
+    // FALLBACK ERROR: If ResRobot fails, we have no backup - this should not happen with correct station IDs
+    console.error("ERROR: planBestRoute called - should use ResRobot API exclusively");
+    throw new Error("Internal routing error - contact support");
 
     // Multi-leg journey only if absolutely necessary
     console.log(`Multi-leg journey required: ${from.name} → ${to.name}`);
