@@ -98,10 +98,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const fromId = typeof data.from === 'string' ? data.from : data.from.id;
       const toId = typeof data.to === 'string' ? data.to : data.to.id;
       
-      // Validate station IDs are numeric (ResRobot station IDs)
-      if (!fromId.match(/^\d+$/) || !toId.match(/^\d+$/)) {
-        throw new Error("Invalid station IDs - must be numeric ResRobot station IDs");
-      }
+      // Debug the actual data being sent
+      console.log(`ROUTE DEBUG: fromId type: ${typeof fromId}, value: "${fromId}"`);
+      console.log(`ROUTE DEBUG: toId type: ${typeof toId}, value: "${toId}"`);
+      console.log(`ROUTE DEBUG: from data:`, data.from);
+      console.log(`ROUTE DEBUG: to data:`, data.to);
       
       console.log(`Searching trips directly with station IDs: ${fromId} -> ${toId}`);
       
