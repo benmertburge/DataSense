@@ -1,0 +1,215 @@
+import {
+  users,
+  stopAreas,
+  stopPoints,
+  lines,
+  savedRoutes,
+  journeys,
+  compensationCases,
+  deviations,
+  type User,
+  type UpsertUser,
+  type StopArea,
+  type StopPoint,
+  type Line,
+  type SavedRoute,
+  type Journey,
+  type CompensationCase,
+  type Deviation,
+  type InsertSavedRoute,
+  type InsertJourney,
+  type InsertCompensationCase,
+} from "@shared/schema";
+import { db } from "./db";
+import { eq, and, desc, gte, lte } from "drizzle-orm";
+
+export interface IStorage {
+  // User operations (required for Replit Auth)
+  getUser(id: string): Promise<User | undefined>;
+  upsertUser(user: UpsertUser): Promise<User>;
+  
+  // Stop and line operations
+  getStopArea(id: string): Promise<StopArea | undefined>;
+  searchStopAreas(query: string): Promise<StopArea[]>;
+  getStopPoints(areaId: string): Promise<StopPoint[]>;
+  getLine(id: string): Promise<Line | undefined>;
+  getLines(): Promise<Line[]>;
+  
+  // Saved routes
+  getUserSavedRoutes(userId: string): Promise<SavedRoute[]>;
+  createSavedRoute(route: InsertSavedRoute): Promise<SavedRoute>;
+  deleteSavedRoute(id: string, userId: string): Promise<void>;
+  
+  // Journeys
+  getUserJourneys(userId: string, limit?: number): Promise<Journey[]>;
+  createJourney(journey: InsertJourney): Promise<Journey>;
+  updateJourney(id: string, updates: Partial<Journey>): Promise<Journey>;
+  getActiveJourney(userId: string): Promise<Journey | undefined>;
+  
+  // Compensation cases
+  getUserCompensationCases(userId: string): Promise<CompensationCase[]>;
+  createCompensationCase(compensationCase: InsertCompensationCase): Promise<CompensationCase>;
+  updateCompensationCase(id: string, updates: Partial<CompensationCase>): Promise<CompensationCase>;
+  getCompensationCase(id: string): Promise<CompensationCase | undefined>;
+  
+  // Deviations
+  getActiveDeviations(): Promise<Deviation[]>;
+  getDeviationsForAreas(areaIds: string[]): Promise<Deviation[]>;
+  getDeviationsForLines(lineIds: string[]): Promise<Deviation[]>;
+}
+
+export class DatabaseStorage implements IStorage {
+  // User operations
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return user;
+  }
+
+  // Stop and line operations
+  async getStopArea(id: string): Promise<StopArea | undefined> {
+    const [stopArea] = await db.select().from(stopAreas).where(eq(stopAreas.id, id));
+    return stopArea;
+  }
+
+  async searchStopAreas(query: string): Promise<StopArea[]> {
+    return await db.select().from(stopAreas)
+      .where(sql`${stopAreas.name} ILIKE ${`%${query}%`}`)
+      .limit(10);
+  }
+
+  async getStopPoints(areaId: string): Promise<StopPoint[]> {
+    return await db.select().from(stopPoints).where(eq(stopPoints.areaId, areaId));
+  }
+
+  async getLine(id: string): Promise<Line | undefined> {
+    const [line] = await db.select().from(lines).where(eq(lines.id, id));
+    return line;
+  }
+
+  async getLines(): Promise<Line[]> {
+    return await db.select().from(lines);
+  }
+
+  // Saved routes
+  async getUserSavedRoutes(userId: string): Promise<SavedRoute[]> {
+    return await db.select().from(savedRoutes)
+      .where(and(eq(savedRoutes.userId, userId), eq(savedRoutes.isActive, true)))
+      .orderBy(desc(savedRoutes.createdAt));
+  }
+
+  async createSavedRoute(route: InsertSavedRoute): Promise<SavedRoute> {
+    const [savedRoute] = await db.insert(savedRoutes).values(route).returning();
+    return savedRoute;
+  }
+
+  async deleteSavedRoute(id: string, userId: string): Promise<void> {
+    await db.update(savedRoutes)
+      .set({ isActive: false })
+      .where(and(eq(savedRoutes.id, id), eq(savedRoutes.userId, userId)));
+  }
+
+  // Journeys
+  async getUserJourneys(userId: string, limit = 20): Promise<Journey[]> {
+    return await db.select().from(journeys)
+      .where(eq(journeys.userId, userId))
+      .orderBy(desc(journeys.createdAt))
+      .limit(limit);
+  }
+
+  async createJourney(journey: InsertJourney): Promise<Journey> {
+    const [newJourney] = await db.insert(journeys).values(journey).returning();
+    return newJourney;
+  }
+
+  async updateJourney(id: string, updates: Partial<Journey>): Promise<Journey> {
+    const [updatedJourney] = await db.update(journeys)
+      .set(updates)
+      .where(eq(journeys.id, id))
+      .returning();
+    return updatedJourney;
+  }
+
+  async getActiveJourney(userId: string): Promise<Journey | undefined> {
+    const [journey] = await db.select().from(journeys)
+      .where(and(
+        eq(journeys.userId, userId),
+        eq(journeys.status, "active")
+      ))
+      .orderBy(desc(journeys.createdAt))
+      .limit(1);
+    return journey;
+  }
+
+  // Compensation cases
+  async getUserCompensationCases(userId: string): Promise<CompensationCase[]> {
+    return await db.select().from(compensationCases)
+      .where(eq(compensationCases.userId, userId))
+      .orderBy(desc(compensationCases.createdAt));
+  }
+
+  async createCompensationCase(compensationCase: InsertCompensationCase): Promise<CompensationCase> {
+    const [newCase] = await db.insert(compensationCases).values(compensationCase).returning();
+    return newCase;
+  }
+
+  async updateCompensationCase(id: string, updates: Partial<CompensationCase>): Promise<CompensationCase> {
+    const [updatedCase] = await db.update(compensationCases)
+      .set(updates)
+      .where(eq(compensationCases.id, id))
+      .returning();
+    return updatedCase;
+  }
+
+  async getCompensationCase(id: string): Promise<CompensationCase | undefined> {
+    const [compensationCase] = await db.select().from(compensationCases).where(eq(compensationCases.id, id));
+    return compensationCase;
+  }
+
+  // Deviations
+  async getActiveDeviations(): Promise<Deviation[]> {
+    const now = new Date();
+    return await db.select().from(deviations)
+      .where(and(
+        eq(deviations.isActive, true),
+        gte(deviations.validTo, now)
+      ))
+      .orderBy(desc(deviations.lastUpdated));
+  }
+
+  async getDeviationsForAreas(areaIds: string[]): Promise<Deviation[]> {
+    const now = new Date();
+    return await db.select().from(deviations)
+      .where(and(
+        eq(deviations.isActive, true),
+        gte(deviations.validTo, now),
+        sql`${deviations.affectedAreaIds} && ${areaIds}`
+      ));
+  }
+
+  async getDeviationsForLines(lineIds: string[]): Promise<Deviation[]> {
+    const now = new Date();
+    return await db.select().from(deviations)
+      .where(and(
+        eq(deviations.isActive, true),
+        gte(deviations.validTo, now),
+        sql`${deviations.affectedLineIds} && ${lineIds}`
+      ));
+  }
+}
+
+export const storage = new DatabaseStorage();

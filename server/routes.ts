@@ -1,0 +1,289 @@
+import type { Express } from "express";
+import { createServer, type Server } from "http";
+import { WebSocketServer, WebSocket } from "ws";
+import { storage } from "./storage";
+import { setupAuth, isAuthenticated } from "./replitAuth";
+import { transitService } from "./services/transitService";
+import { compensationService } from "./services/compensationService";
+import { 
+  journeyPlannerSchema, 
+  compensationClaimSchema,
+  insertSavedRouteSchema,
+  insertJourneySchema 
+} from "@shared/schema";
+
+export async function registerRoutes(app: Express): Promise<Server> {
+  // Auth middleware
+  await setupAuth(app);
+
+  const httpServer = createServer(app);
+
+  // WebSocket server for real-time updates
+  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  const clients = new Map<string, WebSocket>();
+
+  wss.on('connection', (ws, req) => {
+    const url = new URL(req.url || '', `http://${req.headers.host}`);
+    const userId = url.searchParams.get('userId');
+    
+    if (userId) {
+      clients.set(userId, ws);
+      console.log(`WebSocket client connected: ${userId}`);
+    }
+
+    ws.on('close', () => {
+      if (userId) {
+        clients.delete(userId);
+        console.log(`WebSocket client disconnected: ${userId}`);
+      }
+    });
+  });
+
+  // Broadcast real-time updates
+  function broadcastToUser(userId: string, data: any) {
+    const client = clients.get(userId);
+    if (client && client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify(data));
+    }
+  }
+
+  // Auth routes
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Journey planning routes
+  app.post('/api/trips/search', isAuthenticated, async (req: any, res) => {
+    try {
+      const data = journeyPlannerSchema.parse(req.body);
+      const dateTime = new Date(`${data.date}T${data.time}`);
+      
+      const routes = await transitService.searchRoutes(
+        data.from, 
+        data.to, 
+        data.via, 
+        dateTime
+      );
+      
+      res.json(routes);
+    } catch (error) {
+      console.error("Error searching trips:", error);
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
+    }
+  });
+
+  app.get('/api/departures/:areaId', isAuthenticated, async (req, res) => {
+    try {
+      const { areaId } = req.params;
+      const departures = await transitService.getDepartures(areaId);
+      res.json(departures);
+    } catch (error) {
+      console.error("Error fetching departures:", error);
+      res.status(500).json({ message: "Failed to fetch departures" });
+    }
+  });
+
+  // Saved routes
+  app.get('/api/routes', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const routes = await storage.getUserSavedRoutes(userId);
+      res.json(routes);
+    } catch (error) {
+      console.error("Error fetching routes:", error);
+      res.status(500).json({ message: "Failed to fetch routes" });
+    }
+  });
+
+  app.post('/api/routes', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const data = insertSavedRouteSchema.parse({ ...req.body, userId });
+      const route = await storage.createSavedRoute(data);
+      res.json(route);
+    } catch (error) {
+      console.error("Error creating route:", error);
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
+    }
+  });
+
+  app.delete('/api/routes/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+      await storage.deleteSavedRoute(id, userId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting route:", error);
+      res.status(500).json({ message: "Failed to delete route" });
+    }
+  });
+
+  // Journey monitoring
+  app.get('/api/journeys', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const journeys = await storage.getUserJourneys(userId);
+      res.json(journeys);
+    } catch (error) {
+      console.error("Error fetching journeys:", error);
+      res.status(500).json({ message: "Failed to fetch journeys" });
+    }
+  });
+
+  app.get('/api/journeys/active', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const journey = await storage.getActiveJourney(userId);
+      res.json(journey || null);
+    } catch (error) {
+      console.error("Error fetching active journey:", error);
+      res.status(500).json({ message: "Failed to fetch active journey" });
+    }
+  });
+
+  app.post('/api/journeys', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const data = insertJourneySchema.parse({ ...req.body, userId });
+      const journey = await storage.createJourney(data);
+      
+      // Start real-time monitoring
+      setTimeout(async () => {
+        const updates = await transitService.updateJourneyRealtime(journey.id);
+        const updatedJourney = await storage.updateJourney(journey.id, updates);
+        
+        broadcastToUser(userId, {
+          type: 'journey_update',
+          journey: updatedJourney
+        });
+
+        // Check for compensation eligibility
+        if (updatedJourney.delayMinutes >= 20) {
+          const compensationCase = await compensationService.detectEligibility(userId, journey.id);
+          if (compensationCase) {
+            broadcastToUser(userId, {
+              type: 'compensation_eligible',
+              case: compensationCase
+            });
+          }
+        }
+      }, 5000); // Simulate delay after 5 seconds
+      
+      res.json(journey);
+    } catch (error) {
+      console.error("Error creating journey:", error);
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
+    }
+  });
+
+  // Compensation routes
+  app.get('/api/compensation/cases', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const cases = await storage.getUserCompensationCases(userId);
+      res.json(cases);
+    } catch (error) {
+      console.error("Error fetching compensation cases:", error);
+      res.status(500).json({ message: "Failed to fetch compensation cases" });
+    }
+  });
+
+  app.post('/api/compensation/cases/detect', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { journeyId } = req.body;
+      
+      const compensationCase = await compensationService.detectEligibility(userId, journeyId);
+      res.json({ case: compensationCase });
+    } catch (error) {
+      console.error("Error detecting compensation eligibility:", error);
+      res.status(500).json({ message: "Failed to detect compensation eligibility" });
+    }
+  });
+
+  app.post('/api/compensation/submit', isAuthenticated, async (req: any, res) => {
+    try {
+      const { caseId, claimData } = req.body;
+      const validatedClaimData = compensationClaimSchema.parse(claimData);
+      
+      const result = await compensationService.submitClaim(caseId, validatedClaimData);
+      res.json(result);
+    } catch (error) {
+      console.error("Error submitting compensation claim:", error);
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid request" });
+    }
+  });
+
+  app.get('/api/compensation/cases/:id/pdf', async (req, res) => {
+    try {
+      const { id } = req.params;
+      // In production, serve from cloud storage
+      res.status(404).json({ message: "PDF not found" });
+    } catch (error) {
+      console.error("Error fetching PDF:", error);
+      res.status(500).json({ message: "Failed to fetch PDF" });
+    }
+  });
+
+  // Deviations and service alerts
+  app.get('/api/deviations', async (req, res) => {
+    try {
+      const deviations = await storage.getActiveDeviations();
+      res.json(deviations);
+    } catch (error) {
+      console.error("Error fetching deviations:", error);
+      res.status(500).json({ message: "Failed to fetch deviations" });
+    }
+  });
+
+  // User settings
+  app.patch('/api/user/settings', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { notificationsEnabled, delayAlertsEnabled, alertTimingMinutes } = req.body;
+      
+      // Update user settings
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // In a real implementation, you'd update user preferences
+      res.json({ message: "Settings updated successfully" });
+    } catch (error) {
+      console.error("Error updating user settings:", error);
+      res.status(500).json({ message: "Failed to update settings" });
+    }
+  });
+
+  // Background job to process automatic compensation detection
+  setInterval(async () => {
+    try {
+      // Get all users with active journeys
+      const users = await storage.getUsersByActiveJourneys?.() || [];
+      
+      for (const user of users) {
+        const detectedCases = await compensationService.processAutomaticDetection(user.id);
+        
+        if (detectedCases.length > 0) {
+          broadcastToUser(user.id, {
+            type: 'compensation_detected',
+            cases: detectedCases
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error in background compensation detection:", error);
+    }
+  }, 60000); // Run every minute
+
+  return httpServer;
+}
