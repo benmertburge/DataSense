@@ -96,10 +96,28 @@ export class TransitService {
 
     console.log(`ResRobot returned ${data.Trip.length} real trips`);
     
-    // ResRobot already filters by time, so just return all trips
-    console.log(`ResRobot API already filtered trips by time parameters`);
+    // Convert trips and sort by how close they are to user's time preference
+    const trips = data.Trip.map((trip: any, index: number) => this.convertResRobotTripToItinerary(trip, index));
     
-    return data.Trip.map((trip: any, index: number) => this.convertResRobotTripToItinerary(trip, index));
+    if (dateTime) {
+      const userTime = dateTime.getTime();
+      trips.sort((a, b) => {
+        if (searchForArrival) {
+          // For "arrive by", sort by arrival time closest to user's time
+          const aDiff = Math.abs(new Date(a.plannedArrival).getTime() - userTime);
+          const bDiff = Math.abs(new Date(b.plannedArrival).getTime() - userTime);
+          return aDiff - bDiff;
+        } else {
+          // For "depart at", sort by departure time closest to user's time
+          const aDiff = Math.abs(new Date(a.plannedDeparture).getTime() - userTime);
+          const bDiff = Math.abs(new Date(b.plannedDeparture).getTime() - userTime);
+          return aDiff - bDiff;
+        }
+      });
+      console.log(`SORTED: Trips ordered by proximity to ${searchForArrival ? 'arrival' : 'departure'} time`);
+    }
+    
+    return trips;
   }
 
   private convertResRobotTripToItinerary(resRobotTrip: any, index: number): Itinerary {
