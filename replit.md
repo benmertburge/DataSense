@@ -65,8 +65,9 @@ Preferred communication style: Simple, everyday language.
 - **WebSocket**: Native Node.js WebSocket implementation for real-time features
 
 ### Transit Integration
-- **Mock Transit API**: Simulated SL (Stockholm Local Transit) API structure for development
-- **Real-time Data**: Prepared for integration with actual transit APIs (SL, GTFS-RT)
+- **SL Journey Planner 2 API**: Native Stockholm Public Transport routing with multi-strategy searches
+- **Real-time Data**: Live SL transit data including delays and disruptions
+- **Multi-route Strategy**: Attempts direct, via-Odenplan, and least-interchange routing options
 - **Compensation Rules**: Swedish transport compensation regulations (förseningsersättning)
 
 ### UI and Design

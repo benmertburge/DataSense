@@ -33,7 +33,7 @@ interface SLDeparture {
 }
 
 export class TransitService {
-  private readonly RESROBOT_API = "https://api.resrobot.se/v2.1";
+  private readonly SL_JOURNEY_API = "https://journeyplanner.integration.sl.se/v2";
   private readonly SL_TRANSPORT_API = "https://transport.integration.sl.se/v1";
   private cachedSites: StopArea[] = [];
   private cacheExpiry: number = 0;
@@ -825,6 +825,267 @@ export class TransitService {
     // Parse PT40M format to minutes
     const matches = duration.match(/PT(\d+)M/);
     return matches ? parseInt(matches[1]) : 999;
+  }
+
+  // NEW SL Journey Planner API functions
+  async searchRoutesWithSL(from: string, to: string, dateTime: Date, searchType: 'departure' | 'arrival'): Promise<{
+    best: Itinerary;
+    alternatives: Itinerary[];
+  }> {
+    try {
+      console.log(`Starting SL Journey Planner search: ${from} → ${to}`);
+
+      // Search for SL stations first using SL API
+      const [fromSites, toSites] = await Promise.all([
+        this.searchSLStops(from),
+        this.searchSLStops(to)
+      ]);
+
+      if (fromSites.length === 0 || toSites.length === 0) {
+        throw new Error("Could not find stations in SL network");
+      }
+
+      const fromStation = fromSites[0];
+      const toStation = toSites[0];
+
+      console.log(`SL Journey search: ${fromStation.name} (${fromStation.id}) → ${toStation.name} (${toStation.id})`);
+      
+      // Try multiple routing strategies including via Odenplan
+      const searches = [
+        // Direct search
+        {
+          type_origin: 'any',
+          name_origin: fromStation.id,
+          type_destination: 'any',
+          name_destination: toStation.id,
+          calc_number_of_trips: 3,
+          route_type: 'leasttime'
+        },
+        // Via Odenplan
+        {
+          type_origin: 'any',
+          name_origin: fromStation.id,
+          type_destination: 'any', 
+          name_destination: toStation.id,
+          type_via: 'any',
+          name_via: '9091001000009117', // Odenplan SL ID
+          calc_number_of_trips: 3,
+          route_type: 'leasttime'
+        },
+        // Least interchanges
+        {
+          type_origin: 'any',
+          name_origin: fromStation.id,
+          type_destination: 'any',
+          name_destination: toStation.id,
+          calc_number_of_trips: 3,
+          route_type: 'leastinterchange'
+        }
+      ];
+      
+      let allJourneys: any[] = [];
+      
+      for (const [index, searchParams] of searches.entries()) {
+        try {
+          console.log(`Trying SL search strategy ${index + 1}: ${searchParams.route_type}${searchParams.name_via ? ' via Odenplan' : ''}`);
+          
+          const queryParams = new URLSearchParams();
+          Object.entries(searchParams).forEach(([key, value]) => {
+            if (value !== undefined) {
+              queryParams.append(key, value.toString());
+            }
+          });
+          
+          const url = `${this.SL_JOURNEY_API}/trips?${queryParams}`;
+          const response = await fetch(url);
+          
+          if (!response.ok) {
+            console.log(`SL strategy ${index + 1} failed with status ${response.status}`);
+            continue;
+          }
+          
+          const data = await response.json();
+          
+          if (data.journeys && Array.isArray(data.journeys)) {
+            console.log(`SL strategy ${index + 1} returned ${data.journeys.length} journeys`);
+            allJourneys = allJourneys.concat(data.journeys);
+          }
+          
+          // Rate limit protection
+          if (index < searches.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
+          
+        } catch (error) {
+          console.log(`SL strategy ${index + 1} failed:`, error);
+        }
+      }
+      
+      if (allJourneys.length === 0) {
+        throw new Error("No journeys found with SL Journey Planner");
+      }
+      
+      // Remove duplicates and sort by duration
+      const uniqueJourneys = allJourneys.filter((journey, index, self) => 
+        index === self.findIndex(j => j.tripId === journey.tripId)
+      ).sort((a, b) => (a.tripDuration || 999999) - (b.tripDuration || 999999));
+      
+      console.log(`Found ${uniqueJourneys.length} unique SL journeys after deduplication`);
+
+      // Convert SL journeys to our Itinerary format
+      const convertedTrips = uniqueJourneys.slice(0, 3).map((journey: any, index: number) => 
+        this.convertSLToItinerary(journey, fromStation, toStation, index === 0 ? 'main' : `alt_${index}`)
+      );
+
+      return {
+        best: convertedTrips[0],
+        alternatives: convertedTrips.slice(1)
+      };
+
+    } catch (error) {
+      console.error("SL Journey Planner failed - NO FALLBACK:", error);
+      throw new Error("SL routing unavailable - please try again later");
+    }
+  }
+
+  async searchSLStops(query: string): Promise<StopArea[]> {
+    try {
+      const url = `${this.SL_JOURNEY_API}/stop-finder?name_sf=${encodeURIComponent(query)}&any_obj_filter_sf=2&type_sf=any`;
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`SL stop search failed: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data.locations || !Array.isArray(data.locations)) {
+        return [];
+      }
+      
+      // Convert SL format to our StopArea format
+      return data.locations.map((location: any) => ({
+        id: location.id,
+        name: location.disassembledName || location.name,
+        lat: location.coord ? location.coord[0].toString() : null,
+        lon: location.coord ? location.coord[1].toString() : null,
+        type: location.type === 'stop' ? 'METROSTN' : 'STOP',
+        weight: location.matchQuality || 0
+      }));
+      
+    } catch (error) {
+      console.error('SL stop search error:', error);
+      return [];
+    }
+  }
+
+  convertSLToItinerary(journey: any, fromStation: StopArea, toStation: StopArea, type: string): Itinerary {
+    console.log(`Converting SL journey with ${journey.legs?.length || 0} legs to itinerary format`);
+    
+    const legs: Leg[] = [];
+    const legList = journey.legs || [];
+
+    for (const leg of legList) {
+      console.log(`Processing SL leg: ${leg.origin?.disassembledName} → ${leg.destination?.disassembledName} via ${leg.transportation?.disassembledName || 'walking'}`);
+      
+      if (!leg.transportation) {
+        // Walking leg
+        const walkLeg: WalkLeg = {
+          kind: "WALK",
+          fromAreaId: leg.origin?.parent?.id || leg.origin?.id || fromStation.id,
+          toAreaId: leg.destination?.parent?.id || leg.destination?.id || toStation.id,
+          durationMinutes: Math.ceil(leg.duration / 60) || 5,
+          meters: leg.distance || 400,
+        };
+        legs.push(walkLeg);
+      } else {
+        // Transit leg
+        const line = this.convertSLLine(leg.transportation);
+        const transitLeg: TransitLeg = {
+          kind: "TRANSIT",
+          line,
+          journeyId: leg.transportation?.properties?.AVMSTripID || `SL_${Date.now()}`,
+          directionText: leg.transportation?.destination?.name || toStation.name,
+          from: {
+            areaId: leg.origin?.parent?.id || leg.origin?.id || fromStation.id,
+            name: leg.origin?.disassembledName || leg.origin?.name || fromStation.name,
+            platform: leg.origin?.properties?.platformName || "1"
+          },
+          to: {
+            areaId: leg.destination?.parent?.id || leg.destination?.id || toStation.id,
+            name: leg.destination?.disassembledName || leg.destination?.name || toStation.name,
+            platform: leg.destination?.properties?.platformName || "1"
+          },
+          plannedDeparture: leg.origin?.departureTimePlanned || new Date().toISOString(),
+          plannedArrival: leg.destination?.arrivalTimePlanned || new Date().toISOString(),
+          expectedDeparture: leg.origin?.departureTimeEstimated || leg.origin?.departureTimePlanned || new Date().toISOString(),
+          expectedArrival: leg.destination?.arrivalTimeEstimated || leg.destination?.arrivalTimePlanned || new Date().toISOString(),
+        };
+        legs.push(transitLeg);
+      }
+    }
+
+    const plannedDeparture = journey.legs?.[0]?.origin?.departureTimePlanned || new Date().toISOString();
+    const plannedArrival = journey.legs?.[journey.legs.length - 1]?.destination?.arrivalTimePlanned || new Date().toISOString();
+    const expectedDeparture = journey.legs?.[0]?.origin?.departureTimeEstimated || plannedDeparture;
+    const expectedArrival = journey.legs?.[journey.legs.length - 1]?.destination?.arrivalTimeEstimated || plannedArrival;
+
+    const delayMinutes = journey.tripRtDuration && journey.tripDuration 
+      ? Math.round((journey.tripRtDuration - journey.tripDuration) / 60) 
+      : 0;
+
+    return {
+      id: `SL_${Date.now()}_${type}`,
+      legs,
+      plannedDeparture,
+      plannedArrival,
+      expectedDeparture,
+      expectedArrival,
+      delayMinutes,
+    };
+  }
+
+  convertSLLine(transportation: any): Line {
+    const productClass = transportation.product?.class || 0;
+    const lineNumber = transportation.disassembledName || transportation.number || "Unknown";
+    const lineName = transportation.name || `Line ${lineNumber}`;
+    
+    // Map SL product classes to our transport modes
+    let mode: "METRO" | "TRAIN" | "BUS" | "TRAM" = "BUS";
+    let color = "#007AC9"; // Default SL blue
+    
+    switch (productClass) {
+      case 0: // Commuter trains
+        mode = "TRAIN";
+        color = "#EC619F"; // SL pink for pendeltåg
+        break;
+      case 2: // Metro
+        mode = "METRO";
+        // Use SL metro line colors
+        if (lineNumber.includes("10") || lineNumber.includes("11")) color = "#0089CA"; // Blue line
+        else if (lineNumber.includes("13") || lineNumber.includes("14")) color = "#D71D24"; // Red line  
+        else if (lineNumber.includes("17") || lineNumber.includes("18") || lineNumber.includes("19")) color = "#4BA946"; // Green line
+        break;
+      case 4: // Trams and local trains
+        mode = "TRAM";
+        color = "#985141"; // Brown for trams
+        break;
+      case 5: // Buses
+        mode = "BUS";
+        color = "#007AC9"; // SL blue for buses
+        break;
+      default:
+        mode = "BUS";
+    }
+    
+    return {
+      id: transportation.id || `SL_${lineNumber}`,
+      name: lineName,
+      number: lineNumber,
+      mode,
+      color,
+      textColor: "#FFFFFF"
+    };
   }
 
   private planBestRoute(from: StopArea, to: StopArea): {
