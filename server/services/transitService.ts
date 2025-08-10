@@ -1183,34 +1183,33 @@ export class TransitService {
     };
   }
 
-  // Find major transport hubs using Google Places API + SL station search
+  // Find major transport hubs using only SL APIs
   async findMajorHubs(fromStation: StopArea, toStation: StopArea): Promise<StopArea[]> {
-    // Dynamic discovery using Google Places API for Stockholm transit hubs
+    // Use SL Station Search API to discover major hubs
     const centerLat = (parseFloat(fromStation.lat!) + parseFloat(toStation.lat!)) / 2;
     const centerLon = (parseFloat(fromStation.lon!) + parseFloat(toStation.lon!)) / 2;
     
     console.log(`Discovering hubs near route center: ${centerLat}, ${centerLon}`);
     
-    const googleHubs = await this.findTransitHubsWithGoogle(centerLat, centerLon);
     const hubs: StopArea[] = [];
+    const hubSearchTerms = ['Stockholm', 'Centralen', 'Odenplan', 'Slussen', 'Södra'];
     
-    for (const googleHub of googleHubs) {
+    for (const term of hubSearchTerms) {
       try {
-        // Find corresponding SL station for each Google-discovered hub
-        const sites = await this.searchSites(googleHub.name);
+        const sites = await this.searchSites(term);
         if (sites.length > 0) {
           hubs.push(sites[0]);
-          console.log(`Found SL station for hub: ${googleHub.name} -> ${sites[0].name}`);
+          console.log(`Found SL hub: ${sites[0].name}`);
         }
       } catch (error) {
-        console.log(`Could not find SL station for Google hub ${googleHub.name}:`, error);
+        console.log(`Could not find SL station for hub ${term}:`, error);
       }
     }
     
     return hubs;
   }
 
-  // Use Google Places API to find major transit hubs dynamically
+  // Use SL API to find major transit hubs dynamically  
   async findTransitHubsWithGoogle(centerLat: number, centerLon: number): Promise<{name: string; lat: number; lon: number}[]> {
     try {
       // Use SL Station Search API to dynamically discover major hubs
