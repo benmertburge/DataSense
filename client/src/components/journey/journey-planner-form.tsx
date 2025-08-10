@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -13,11 +13,23 @@ import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 
+interface Station {
+  id: string;
+  name: string;
+  type: string;
+}
+
 export default function JourneyPlannerForm() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [leaveAt, setLeaveAt] = useState(true);
+  const [fromQuery, setFromQuery] = useState('');
+  const [toQuery, setToQuery] = useState('');
+  const [showFromDropdown, setShowFromDropdown] = useState(false);
+  const [showToDropdown, setShowToDropdown] = useState(false);
+  const fromInputRef = useRef<HTMLInputElement>(null);
+  const toInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<JourneyPlannerRequest>({
     resolver: zodResolver(journeyPlannerSchema),
@@ -34,6 +46,19 @@ export default function JourneyPlannerForm() {
   const { data: savedRoutes } = useQuery({
     queryKey: ['/api/routes'],
     enabled: !!user,
+  });
+
+  // Station search queries
+  const { data: fromStations = [] } = useQuery({
+    queryKey: ['/api/sites/search', fromQuery],
+    enabled: fromQuery.length >= 2,
+    staleTime: 5000, // Cache for 5 seconds
+  });
+
+  const { data: toStations = [] } = useQuery({
+    queryKey: ['/api/sites/search', toQuery],
+    enabled: toQuery.length >= 2,
+    staleTime: 5000,
   });
 
   const searchMutation = useMutation({
@@ -67,6 +92,22 @@ export default function JourneyPlannerForm() {
     const toValue = form.getValues('to');
     form.setValue('from', toValue);
     form.setValue('to', fromValue);
+    // Also swap the query values
+    const tempQuery = fromQuery;
+    setFromQuery(toQuery);
+    setToQuery(tempQuery);
+  };
+
+  const selectFromStation = (station: Station) => {
+    form.setValue('from', station.name);
+    setFromQuery(station.name);
+    setShowFromDropdown(false);
+  };
+
+  const selectToStation = (station: Station) => {
+    form.setValue('to', station.name);
+    setToQuery(station.name);
+    setShowToDropdown(false);
   };
 
   const selectSavedRoute = (route: any) => {
@@ -106,10 +147,46 @@ export default function JourneyPlannerForm() {
                         </div>
                         <Input
                           {...field}
+                          ref={fromInputRef}
                           placeholder="Stockholm Odenplan"
                           className="pl-8 pr-10"
+                          onChange={(e) => {
+                            field.onChange(e);
+                            setFromQuery(e.target.value);
+                            setShowFromDropdown(e.target.value.length >= 2);
+                          }}
+                          onFocus={() => {
+                            if (fromQuery.length >= 2) {
+                              setShowFromDropdown(true);
+                            }
+                          }}
+                          onBlur={() => {
+                            // Delay hiding to allow click on dropdown
+                            setTimeout(() => setShowFromDropdown(false), 200);
+                          }}
                         />
                         <MapPin className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        
+                        {showFromDropdown && fromStations.length > 0 && (
+                          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                            {fromStations.map((station: Station) => (
+                              <button
+                                key={station.id}
+                                type="button"
+                                className="w-full px-4 py-2 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                                onClick={() => selectFromStation(station)}
+                              >
+                                <div className="flex items-center">
+                                  <MapPin className="h-4 w-4 text-gray-400 mr-2" />
+                                  <div>
+                                    <div className="font-medium">{station.name}</div>
+                                    <div className="text-sm text-gray-500">{station.type}</div>
+                                  </div>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </FormControl>
                     <FormMessage />
@@ -142,7 +219,67 @@ export default function JourneyPlannerForm() {
                         </div>
                         <Input
                           {...field}
+                          ref={toInputRef}
                           placeholder="Arlanda Airport"
+                          className="pl-8 pr-10"
+                          onChange={(e) => {
+                            field.onChange(e);
+                            setToQuery(e.target.value);
+                            setShowToDropdown(e.target.value.length >= 2);
+                          }}
+                          onFocus={() => {
+                            if (toQuery.length >= 2) {
+                              setShowToDropdown(true);
+                            }
+                          }}
+                          onBlur={() => {
+                            // Delay hiding to allow click on dropdown
+                            setTimeout(() => setShowToDropdown(false), 200);
+                          }}
+                        />
+                        <MapPin className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        
+                        {showToDropdown && toStations.length > 0 && (
+                          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                            {toStations.map((station: Station) => (
+                              <button
+                                key={station.id}
+                                type="button"
+                                className="w-full px-4 py-2 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                                onClick={() => selectToStation(station)}
+                              >
+                                <div className="flex items-center">
+                                  <MapPin className="h-4 w-4 text-gray-400 mr-2" />
+                                  <div>
+                                    <div className="font-medium">{station.name}</div>
+                                    <div className="text-sm text-gray-500">{station.type}</div>
+                                  </div>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="via"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Via (optional)</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        </div>
+                        <Input
+                          {...field}
+                          placeholder="T-Centralen"
                           className="pl-8 pr-10"
                         />
                         <MapPin className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />

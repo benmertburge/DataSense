@@ -520,6 +520,159 @@ export class TransitService {
     };
   }
 
+  async searchRoutesWithResRobot(from: string, to: string, dateTime: Date, searchType: 'departure' | 'arrival'): Promise<{
+    best: Itinerary;
+    alternatives: Itinerary[];
+  }> {
+    try {
+      // First, find the station IDs
+      const [fromSites, toSites] = await Promise.all([
+        this.searchSites(from),
+        this.searchSites(to)
+      ]);
+
+      if (fromSites.length === 0 || toSites.length === 0) {
+        throw new Error("Could not find stations");
+      }
+
+      const fromStation = fromSites[0];
+      const toStation = toSites[0];
+
+      // Format for ResRobot API
+      const date = dateTime.toISOString().slice(0, 10);
+      const time = dateTime.toTimeString().slice(0, 5);
+      const isArrival = searchType === 'arrival' ? '1' : '0';
+      
+      const url = `${this.RESROBOT_API}/trip?originId=${fromStation.id}&destId=${toStation.id}&date=${date}&time=${time}&searchForArrival=${isArrival}&format=json&accessId=${process.env.RESROBOT_API_KEY}&numF=3&numB=0`;
+      
+      console.log(`ResRobot trip search: ${from} (${fromStation.id}) → ${to} (${toStation.id}), ${searchType} at ${time}`);
+      
+      const response = await fetch(url);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("ResRobot API error:", errorText);
+        throw new Error(`ResRobot API failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.Error) {
+        throw new Error(`ResRobot error: ${data.Error.errorText || 'API error'}`);
+      }
+
+      const trips = data.Trip || [];
+      if (trips.length === 0) {
+        throw new Error("No trips found");
+      }
+
+      // Convert ResRobot trips to our Itinerary format
+      const convertedTrips = trips.slice(0, 3).map((trip: any, index: number) => 
+        this.convertResRobotToItinerary(trip, fromStation, toStation, index === 0 ? 'main' : `alt_${index}`)
+      );
+
+      return {
+        best: convertedTrips[0],
+        alternatives: convertedTrips.slice(1)
+      };
+
+    } catch (error) {
+      console.log("ResRobot failed, falling back to local search:", error);
+      return this.searchRoutes(from, to, undefined, dateTime);
+    }
+  }
+
+  private convertResRobotToItinerary(trip: any, fromStation: StopArea, toStation: StopArea, type: string): Itinerary {
+    const legs: Leg[] = [];
+    const legList = trip.LegList?.Leg || [];
+
+    for (const leg of legList) {
+      if (leg.type === 'WALK') {
+        const walkLeg: WalkLeg = {
+          kind: "WALK",
+          fromAreaId: leg.Origin?.id || fromStation.id,
+          toAreaId: leg.Destination?.id || toStation.id,
+          durationMinutes: Math.ceil((leg.duration || "PT5M").replace('PT', '').replace('M', '') / 1) || 5,
+          meters: leg.dist || 400,
+        };
+        legs.push(walkLeg);
+      } else {
+        // Transit leg
+        const line = this.convertResRobotLine(leg);
+        const transitLeg: TransitLeg = {
+          kind: "TRANSIT",
+          line,
+          journeyId: leg.JourneyDetailRef?.ref || `J_${Date.now()}`,
+          directionText: leg.direction || toStation.name,
+          from: {
+            areaId: leg.Origin?.id || fromStation.id,
+            name: leg.Origin?.name || fromStation.name,
+            platform: leg.Origin?.track || "1"
+          },
+          to: {
+            areaId: leg.Destination?.id || toStation.id,
+            name: leg.Destination?.name || toStation.name,
+            platform: leg.Destination?.track || "1"
+          },
+          plannedDeparture: leg.Origin?.date + 'T' + leg.Origin?.time,
+          plannedArrival: leg.Destination?.date + 'T' + leg.Destination?.time,
+          expectedDeparture: leg.Origin?.rtDate && leg.Origin?.rtTime ? 
+            leg.Origin.rtDate + 'T' + leg.Origin.rtTime : 
+            leg.Origin?.date + 'T' + leg.Origin?.time,
+          expectedArrival: leg.Destination?.rtDate && leg.Destination?.rtTime ? 
+            leg.Destination.rtDate + 'T' + leg.Destination.rtTime : 
+            leg.Destination?.date + 'T' + leg.Destination?.time,
+        };
+        legs.push(transitLeg);
+      }
+    }
+
+    const plannedDeparture = trip.Origin?.date + 'T' + trip.Origin?.time;
+    const plannedArrival = trip.Destination?.date + 'T' + trip.Destination?.time;
+    const expectedDeparture = trip.Origin?.rtDate && trip.Origin?.rtTime ? 
+      trip.Origin.rtDate + 'T' + trip.Origin.rtTime : plannedDeparture;
+    const expectedArrival = trip.Destination?.rtDate && trip.Destination?.rtTime ? 
+      trip.Destination.rtDate + 'T' + trip.Destination.rtTime : plannedArrival;
+
+    const delayMinutes = Math.round(
+      (new Date(expectedArrival).getTime() - new Date(plannedArrival).getTime()) / 60000
+    );
+
+    return {
+      id: `IT_${Date.now()}_${type}`,
+      legs,
+      plannedDeparture,
+      plannedArrival,
+      expectedDeparture,
+      expectedArrival,
+      delayMinutes,
+    };
+  }
+
+  private convertResRobotLine(leg: any): Line {
+    const transportMode = leg.Product?.catIn || 'UNKNOWN';
+    const lineNumber = leg.Product?.line || leg.Product?.num || 'Unknown';
+    const lineName = leg.Product?.name || `${transportMode} ${lineNumber}`;
+    
+    let mode: "METRO" | "BUS" | "TRAIN" | "TRAM" | "FERRY" = "BUS";
+    
+    if (transportMode.includes('METRO') || lineName.includes('T-bana') || lineName.startsWith('T')) {
+      mode = "METRO";
+    } else if (transportMode.includes('TRAIN') || lineName.includes('pendel') || lineName.startsWith('J')) {
+      mode = "TRAIN";
+    } else if (transportMode.includes('TRAM') || lineName.includes('spårvagn')) {
+      mode = "TRAM";
+    } else if (transportMode.includes('FERRY') || lineName.includes('båt')) {
+      mode = "FERRY";
+    }
+
+    return {
+      id: `L_${lineNumber}`,
+      number: lineNumber,
+      mode,
+      name: lineName,
+      operatorId: "SL"
+    };
+  }
+
   private planBestRoute(from: StopArea, to: StopArea): {
     direct: boolean;
     viaHub?: string;
