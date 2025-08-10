@@ -65,17 +65,7 @@ export default function AlternativeRoutes() {
     }
   };
 
-  const getModeDisplay = (line: any) => {
-    // Use the color directly from the backend API (Swedish transport colors)
-    return (
-      <span 
-        className="text-white px-2 py-1 rounded text-xs font-bold"
-        style={{ backgroundColor: line.color || '#666666' }}
-      >
-        {line.number}
-      </span>
-    );
-  };
+  // Remove this function - colors handled inline
 
   const getRouteLabel = (legs: any[]) => {
     const transitLegs = legs.filter(leg => leg.kind === 'TRANSIT');
@@ -132,7 +122,10 @@ export default function AlternativeRoutes() {
                   <div className="flex items-center space-x-3">
                     <div 
                       className="w-8 h-8 rounded text-white text-xs font-bold flex items-center justify-center"
-                      style={{ backgroundColor: leg.line.color || '#666666' }}
+                      style={{ 
+                        backgroundColor: leg.line.color || '#666666',
+                        color: 'white' 
+                      }}
                     >
                       {leg.line.number}
                     </div>
@@ -141,13 +134,7 @@ export default function AlternativeRoutes() {
                       <span className="text-xs text-gray-500">
                         {leg.from?.name || 'Unknown'} → {leg.to?.name || 'Unknown'}
                       </span>
-                      {(leg.from?.platform || leg.to?.platform) && (
-                        <span className="text-xs text-blue-600">
-                          {leg.from?.platform && `Platform ${leg.from.platform}`}
-                          {leg.from?.platform && leg.to?.platform && ' → '}
-                          {leg.to?.platform && `Platform ${leg.to.platform}`}
-                        </span>
-                      )}
+                      {/* Platform info not available from ResRobot Trip API */}
                     </div>
                   </div>
                   <div className="text-right text-xs">

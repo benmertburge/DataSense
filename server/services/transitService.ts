@@ -62,11 +62,10 @@ export class TransitService {
       destId: toId,
       format: 'json',
       accessId: apiKey,
-      numF: '6',  // Number of results after specified time
-      numB: '0',  // Number of results before specified time  
+      numF: '3',  // Get fewer results but prefer direct routes
+      numB: '0',  
       searchForArrival: searchForArrival ? '1' : '0',
-      passlist: '1',  // Include detailed stop information and platforms
-      maxChange: '2'  // Allow up to 2 transfers for more routing options
+      maxChange: '1'  // Prefer direct routes and single transfers
     });
 
     if (dateTime) {
@@ -153,8 +152,8 @@ export class TransitService {
         console.log(`DEBUG: ResRobot Times - Origin date: ${leg.Origin?.date}, time: ${leg.Origin?.time}`);
         console.log(`DEBUG: ResRobot Times - Destination date: ${leg.Destination?.date}, time: ${leg.Destination?.time}`);
         console.log(`DEBUG: ResRobot Stations - From: ${leg.Origin?.name}, To: ${leg.Destination?.name}`);
-        // Debug ALL available fields from ResRobot leg to find platform info
-        console.log(`DEBUG: Complete ResRobot Leg Object:`, JSON.stringify(leg, null, 2));
+        // ResRobot doesn't provide platform info in this API endpoint
+        console.log(`DEBUG: ResRobot provides no platform data in Trip API`);
         
         legs.push({
           kind: 'TRANSIT',
@@ -171,14 +170,12 @@ export class TransitService {
           from: {
             areaId: leg.Origin?.extId || 'unknown',
             name: leg.Origin?.name || 'Unknown',
-            platform: leg.Origin?.track || leg.Origin?.rtTrack || leg.Origin?.platform || 
-                     leg.Origin?.prognosisType || leg.JourneyDetailRef?.ref?.match(/track:(\d+)/)?.[1] || undefined
+            platform: undefined  // ResRobot Trip API doesn't provide platform info
           },
           to: {
             areaId: leg.Destination?.extId || 'unknown',
             name: leg.Destination?.name || 'Unknown',
-            platform: leg.Destination?.track || leg.Destination?.rtTrack || leg.Destination?.platform || 
-                     leg.Destination?.prognosisType || leg.JourneyDetailRef?.ref?.match(/track:(\d+)/)?.[1] || undefined
+            platform: undefined  // ResRobot Trip API doesn't provide platform info
           },
           plannedDeparture: this.formatResRobotDateTime(leg.Origin?.date, leg.Origin?.time),
           plannedArrival: this.formatResRobotDateTime(leg.Destination?.date, leg.Destination?.time)
