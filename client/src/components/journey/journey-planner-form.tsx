@@ -148,7 +148,7 @@ export default function JourneyPlannerForm() {
                 name="from"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>From</FormLabel>
+                    <FormLabel className="text-gray-900 dark:text-white">From</FormLabel>
                     <FormControl>
                       <div className="relative">
                         <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
@@ -212,9 +212,9 @@ export default function JourneyPlannerForm() {
                   variant="ghost" 
                   size="sm"
                   onClick={swapLocations}
-                  className="p-2 bg-gray-100 rounded-full hover:bg-gray-200"
+                  className="p-2 bg-gray-100 dark:bg-gray-700 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600"
                 >
-                  <ArrowUpDown className="h-4 w-4 text-gray-600" />
+                  <ArrowUpDown className="h-4 w-4 text-gray-600 dark:text-gray-300" />
                 </Button>
               </div>
 
@@ -223,7 +223,7 @@ export default function JourneyPlannerForm() {
                 name="to"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>To</FormLabel>
+                    <FormLabel className="text-gray-900 dark:text-white">To</FormLabel>
                     <FormControl>
                       <div className="relative">
                         <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
