@@ -95,6 +95,7 @@ export class TransitService {
     }
 
     console.log(`ResRobot returned ${data.Trip.length} real trips`);
+    console.log(`DEBUG: First trip structure:`, JSON.stringify(data.Trip[0], null, 2));
     
     return data.Trip.map((trip: any, index: number) => this.convertResRobotTripToItinerary(trip, index));
   }
@@ -133,6 +134,8 @@ export class TransitService {
         const lineName = product?.name || leg.name || `${this.getTransportTypeText(product)} ${lineNumber}`;
         
         console.log(`DEBUG: ResRobot Line - num: ${product?.num}, line: ${product?.line}, name: ${product?.name}`);
+        console.log(`DEBUG: ResRobot Times - Origin date: ${leg.Origin?.date}, time: ${leg.Origin?.time}`);
+        console.log(`DEBUG: ResRobot Times - Destination date: ${leg.Destination?.date}, time: ${leg.Destination?.time}`);
         
         legs.push({
           type: 'transit',
