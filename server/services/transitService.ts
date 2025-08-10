@@ -357,12 +357,13 @@ export class TransitService {
       }
       
       // ResRobot format: date "2025-08-11", time "08:30"
+      // Create date without timezone conversion for Swedish local time
       const [hours, minutes] = timeString.split(':');
-      const dateTime = new Date(`${dateString}T${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}:00`);
+      const localDateTime = `${dateString}T${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}:00`;
       
-      console.log(`DEBUG: ResRobot DateTime - Date: ${dateString}, Time: ${timeString} -> ISO: ${dateTime.toISOString()}`);
-      console.log(`PROOF: Converting "${dateString} ${timeString}" to "${dateTime.toISOString()}"`);
-      return dateTime.toISOString();
+      console.log(`DEBUG: ResRobot DateTime - Date: ${dateString}, Time: ${timeString} -> Local: ${localDateTime}`);
+      console.log(`PROOF: Converting "${dateString} ${timeString}" to local time "${localDateTime}"`);
+      return localDateTime;
     } catch (error) {
       console.error(`Failed to format ResRobot date/time "${dateString}" "${timeString}":`, error);
       return new Date().toISOString();

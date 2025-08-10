@@ -27,7 +27,7 @@ export default function AlternativeRoutes() {
       // Handle both ISO format and simple time format
       let date: Date;
       if (timeString.includes('T')) {
-        // ISO format: "2025-08-11T08:32:00"
+        // Local format: "2025-08-11T08:32:00" (already Swedish local time)
         date = new Date(timeString);
       } else if (timeString.includes(':')) {
         // Simple time format: "08:32:00"
