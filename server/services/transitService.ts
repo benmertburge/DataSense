@@ -981,12 +981,33 @@ export class TransitService {
 
   convertSLToItinerary(journey: any, fromStation: StopArea, toStation: StopArea, type: string): Itinerary {
     console.log(`Converting SL journey with ${journey.legs?.length || 0} legs to itinerary format`);
+    console.log(`Raw SL journey data:`, JSON.stringify(journey, null, 2));
     
     const legs: Leg[] = [];
     const legList = journey.legs || [];
 
     for (const leg of legList) {
-      console.log(`Processing SL leg: ${leg.origin?.disassembledName} → ${leg.destination?.disassembledName} via ${leg.transportation?.disassembledName || 'walking'}`);
+      // Extract actual station names from SL response structure
+      let originName = 'Unknown';
+      let destName = 'Unknown';
+      
+      // Extract station names from SL response - try all possible paths
+      if (leg.origin) {
+        // SL stores full names in different fields, extract clean station name
+        const fullName = leg.origin.name || leg.origin.parent?.name || leg.origin.disassembledName || leg.origin.parent?.disassembledName;
+        originName = this.cleanSLStationName(fullName) || fromStation.name;
+      }
+      
+      if (leg.destination) {
+        const fullName = leg.destination.name || leg.destination.parent?.name || leg.destination.disassembledName || leg.destination.parent?.disassembledName;
+        destName = this.cleanSLStationName(fullName) || toStation.name;
+      }
+      
+      const transportName = leg.transportation?.disassembledName || leg.transportation?.number || 'walking';
+      
+      console.log(`Processing SL leg: ${originName} → ${destName} via ${transportName}`);
+      console.log(`Origin object:`, JSON.stringify(leg.origin, null, 2));
+      console.log(`Destination object:`, JSON.stringify(leg.destination, null, 2));
       
       if (!leg.transportation) {
         // Walking leg
@@ -994,12 +1015,12 @@ export class TransitService {
           kind: "WALK",
           fromAreaId: leg.origin?.parent?.id || leg.origin?.id || fromStation.id,
           toAreaId: leg.destination?.parent?.id || leg.destination?.id || toStation.id,
-          durationMinutes: Math.ceil(leg.duration / 60) || 5,
+          durationMinutes: Math.ceil((leg.duration || 0) / 60) || 5,
           meters: leg.distance || 400,
         };
         legs.push(walkLeg);
       } else {
-        // Transit leg
+        // Transit leg - extract ACTUAL station names
         const line = this.convertSLLine(leg.transportation);
         const transitLeg: TransitLeg = {
           kind: "TRANSIT",
@@ -1008,13 +1029,13 @@ export class TransitService {
           directionText: leg.transportation?.destination?.name || toStation.name,
           from: {
             areaId: leg.origin?.parent?.id || leg.origin?.id || fromStation.id,
-            name: leg.origin?.disassembledName || leg.origin?.name || fromStation.name,
-            platform: leg.origin?.properties?.platformName || "1"
+            name: originName,
+            platform: leg.origin?.properties?.platformName || leg.origin?.disassembledName || "1"
           },
           to: {
             areaId: leg.destination?.parent?.id || leg.destination?.id || toStation.id,
-            name: leg.destination?.disassembledName || leg.destination?.name || toStation.name,
-            platform: leg.destination?.properties?.platformName || "1"
+            name: destName,
+            platform: leg.destination?.properties?.platformName || leg.destination?.disassembledName || "1"
           },
           plannedDeparture: leg.origin?.departureTimePlanned || new Date().toISOString(),
           plannedArrival: leg.destination?.arrivalTimePlanned || new Date().toISOString(),
@@ -1043,6 +1064,20 @@ export class TransitService {
       expectedArrival,
       delayMinutes,
     };
+  }
+
+  // Clean up SL station names (remove city prefix, etc.)
+  cleanSLStationName(fullName: string | undefined): string | undefined {
+    if (!fullName) return undefined;
+    
+    // SL names often come as "City, Station" - extract just the station name
+    // Examples: "Sundbyberg, Sundbyberg" -> "Sundbyberg", "Stockholm, T-Centralen" -> "T-Centralen"
+    const parts = fullName.split(', ');
+    if (parts.length >= 2) {
+      return parts[1]; // Take the station part
+    }
+    
+    return fullName; // If no comma, return as-is
   }
 
   convertSLLine(transportation: any): Line {
