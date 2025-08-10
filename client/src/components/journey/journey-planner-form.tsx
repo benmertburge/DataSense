@@ -42,23 +42,23 @@ export default function JourneyPlannerForm() {
     },
   });
 
-  const { data: savedRoutes } = useQuery({
+  const { data: savedRoutes = [] } = useQuery({
     queryKey: ['/api/routes'],
     enabled: !!user,
-  });
+  }) as { data: any[] };
 
   // Station search queries
   const { data: fromStations = [] } = useQuery({
     queryKey: ['/api/sites/search', fromQuery],
     enabled: fromQuery.length >= 2,
     staleTime: 5000, // Cache for 5 seconds
-  });
+  }) as { data: Station[] };
 
   const { data: toStations = [] } = useQuery({
     queryKey: ['/api/sites/search', toQuery],
     enabled: toQuery.length >= 2,
     staleTime: 5000,
-  });
+  }) as { data: Station[] };
 
   const searchMutation = useMutation({
     mutationFn: async (data: JourneyPlannerRequest) => {

@@ -1030,12 +1030,12 @@ export class TransitService {
           from: {
             areaId: leg.origin?.parent?.id || leg.origin?.id || fromStation.id,
             name: originName,
-            platform: leg.origin?.properties?.platformName || leg.origin?.disassembledName || "1"
+            platform: leg.origin?.properties?.platformName || leg.origin?.properties?.platform || leg.origin?.disassembledName || "1"
           },
           to: {
             areaId: leg.destination?.parent?.id || leg.destination?.id || toStation.id,
             name: destName,
-            platform: leg.destination?.properties?.platformName || leg.destination?.disassembledName || "1"
+            platform: leg.destination?.properties?.platformName || leg.destination?.properties?.platform || leg.destination?.disassembledName || "1"
           },
           plannedDeparture: leg.origin?.departureTimePlanned || new Date().toISOString(),
           plannedArrival: leg.destination?.arrivalTimePlanned || new Date().toISOString(),

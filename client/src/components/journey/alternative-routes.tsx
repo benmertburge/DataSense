@@ -7,11 +7,22 @@ import { Button } from '@/components/ui/button';
 export default function AlternativeRoutes() {
   const { data: tripResults } = useQuery({
     queryKey: ['trip-results'],
-    enabled: false, // Only get cached data
+    enabled: true, // Enable to show cached search results
   }) as { data: { best?: any; alternatives?: any[] } | undefined };
 
-  if (!tripResults?.alternatives || tripResults.alternatives.length === 0) {
+  // Show both the best route and alternatives
+  if (!tripResults?.best && (!tripResults?.alternatives || tripResults.alternatives.length === 0)) {
     return null;
+  }
+
+  const allRoutes = [];
+  if (tripResults.best) {
+    allRoutes.push({ ...tripResults.best, label: 'Best Route' });
+  }
+  if (tripResults.alternatives) {
+    tripResults.alternatives.forEach((alt, index) => {
+      allRoutes.push({ ...alt, label: `Alternative ${index + 1}` });
+    });
   }
 
   const formatTime = (dateString: string) => {
@@ -66,11 +77,11 @@ export default function AlternativeRoutes() {
       <CardHeader className="border-b border-gray-200">
         <CardTitle className="flex items-center">
           <ArrowRight className="text-blue-600 mr-2" />
-          Alternative Routes
+          Journey Options
         </CardTitle>
       </CardHeader>
       <CardContent className="p-6 space-y-4">
-        {tripResults.alternatives.map((route: any, index: number) => (
+        {allRoutes.map((route: any, index: number) => (
           <div 
             key={index}
             className="border border-gray-200 rounded-lg p-4 hover:border-blue-600 cursor-pointer transition-colors"
@@ -105,7 +116,7 @@ export default function AlternativeRoutes() {
                     <div className="flex flex-col">
                       <span className="text-sm font-medium">{leg.line.name}</span>
                       <span className="text-xs text-gray-500">
-                        {leg.from?.name || 'Unknown'} → {leg.to?.name || 'Unknown'}
+                        {leg.from?.name || 'Unknown'} (Platform {leg.from?.platform || '?'}) → {leg.to?.name || 'Unknown'} (Platform {leg.to?.platform || '?'})
                       </span>
                     </div>
                   </div>
