@@ -94,12 +94,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`ROUTES DEBUG: Hours/Minutes: ${stockholmDateTime.getHours()}:${stockholmDateTime.getMinutes()}`);
       console.log(`ROUTES DEBUG: Search type: ${data.leaveAt ? 'departure' : 'arrival'}`);
       
-      // Use SL Journey Planner 2 - native Stockholm transport routing
-      const routes = await transitService.searchRoutesWithSL(
-        data.from, 
-        data.to, 
-        stockholmDateTime,
-        data.leaveAt ? 'departure' : 'arrival'
+      // Get station details
+      const fromStation = await transitService.getStopArea(data.from.id);
+      const toStation = await transitService.getStopArea(data.to.id);
+      
+      if (!fromStation || !toStation) {
+        throw new Error("Invalid stations selected");
+      }
+      
+      // Use ResRobot API for real journey planning
+      const routes = await transitService.searchTrips(
+        [parseFloat(fromStation.lat), parseFloat(fromStation.lng)],
+        [parseFloat(toStation.lat), parseFloat(toStation.lng)],
+        stockholmDateTime
       );
       
       res.json(routes);

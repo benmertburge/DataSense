@@ -8,6 +8,18 @@ export class TransitService {
   private readonly RESROBOT_API_BASE = 'https://api.resrobot.se/v2.1';
   private readonly TRAFIKLAB_REALTIME_API = 'https://realtime-api.trafiklab.se/v1';
   
+  // ResRobot transport product codes
+  private readonly PRODUCT_CODES = {
+    1: 'Regional train',
+    2: 'Express train',
+    4: 'Local train',
+    8: 'Metro',
+    16: 'Tram',
+    32: 'Bus',
+    64: 'Ferry',
+    128: 'Taxi'
+  };
+  
   // ONLY REAL SWEDISH TRANSPORT DATA - NO MOCK DATA EVER
 
   async searchTrips(fromCoord: [number, number], toCoord: [number, number], dateTime?: Date): Promise<Itinerary[]> {
@@ -346,6 +358,53 @@ export class TransitService {
   async searchSites(query: string): Promise<StopArea[]> {
     return this.searchStopAreas(query);
   }
+  
+  private getTransportTypes(products: number): string[] {
+    const types: string[] = [];
+    for (const [code, name] of Object.entries(this.PRODUCT_CODES)) {
+      if (products & parseInt(code)) {
+        types.push(name);
+      }
+    }
+    return types;
+  }
+  
+  async getStopArea(id: string): Promise<StopArea | undefined> {
+    // First check database
+    const [area] = await db.select().from(stopAreas).where(eq(stopAreas.id, id));
+    if (area) return area;
+    
+    // If not in database, search for it
+    const apiKey = process.env.RESROBOT_API_KEY?.trim();
+    if (!apiKey) return undefined;
+    
+    try {
+      const params = new URLSearchParams({
+        input: id,
+        format: 'json',
+        accessId: apiKey,
+        maxNo: '1'
+      });
+      
+      const response = await fetch(`${this.RESROBOT_API_BASE}/location.name?${params}`);
+      if (!response.ok) return undefined;
+      
+      const data = await response.json();
+      if (data.stopLocationOrCoordLocation?.[0]?.StopLocation) {
+        const loc = data.stopLocationOrCoordLocation[0].StopLocation;
+        return {
+          id: loc.extId || loc.id,
+          name: loc.name,
+          lat: loc.lat.toString(),
+          lng: loc.lon.toString()
+        };
+      }
+    } catch (error) {
+      console.error("Failed to fetch stop area:", error);
+    }
+    
+    return undefined;
+  }
 
   async searchStopAreas(query: string): Promise<StopArea[]> {
     console.log(`REAL API SEARCH: Searching for stations matching "${query}"`);
@@ -389,9 +448,13 @@ export class TransitService {
             const lng = parseFloat(loc.lon);
             
             if (lat >= 59.0 && lat <= 60.0 && lng >= 17.5 && lng <= 19.0) {
+              // Determine transport types from products bitmask
+              const transportTypes = this.getTransportTypes(loc.products || 0);
+              const typeLabel = transportTypes.length > 0 ? ` (${transportTypes.join(', ')})` : '';
+              
               locations.push({
                 id: loc.extId || loc.id,
-                name: loc.name,
+                name: loc.name + typeLabel,
                 lat: loc.lat.toString(),
                 lng: loc.lon.toString()
               });
