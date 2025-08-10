@@ -190,10 +190,8 @@ export class TransitService {
       const count = await db.$count(stopAreas);
       console.log(`Found ${count} stations in database`);
 
-      if (count < 5000) { // If we have fewer than 5000 stations, sync from SL API
-        console.log("Syncing stations from SL API to database...");
-        await this.syncStationsToDatabase();
-      }
+      // NEVER sync fake data from SL API - database contains manually verified real stations
+      console.log("Using manually verified real stations only");
 
       this.isInitialized = true;
     } catch (error) {
