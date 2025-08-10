@@ -137,9 +137,10 @@ export default function AlternativeRoutes() {
                       </span>
                       {(leg.from?.platform || leg.to?.platform) && (
                         <span className="text-xs text-blue-600">
-                          {leg.from?.platform && `Platform ${leg.from.platform}`}
+                          🚉 {leg.from?.platform && `Platform ${leg.from.platform}`}
                           {leg.from?.platform && leg.to?.platform && ' → '}
                           {leg.to?.platform && `Platform ${leg.to.platform}`}
+                          <span className="text-gray-400 ml-1">(from Trafiklab)</span>
                         </span>
                       )}
                     </div>

@@ -290,13 +290,23 @@ export class TransitService {
               const realTimeData = await this.getRealTimeDeparturesFromTrafiklab(stationId, leg.plannedDeparture);
               const matchingDeparture = this.findMatchingDeparture(realTimeData, leg.line.number, leg.plannedDeparture);
               
-              // Extract platform info from the same API response
+              // Extract REAL platform info from Trafiklab Timetables API response
               const platformInfo = matchingDeparture ? {
                 departureTrack: matchingDeparture.realtime_platform?.designation || 
                                matchingDeparture.scheduled_platform?.designation,
                 arrivalTrack: matchingDeparture.realtime_platform?.designation || 
                              matchingDeparture.scheduled_platform?.designation
               } : null;
+              
+              // Log REAL platform data from authentic Swedish transport API
+              if (matchingDeparture) {
+                console.log(`REAL PLATFORM FROM TRAFIKLAB: Line ${leg.line.number} at ${leg.from.name}:`);
+                console.log(`  - Scheduled Platform: ${matchingDeparture.scheduled_platform?.designation}`);
+                console.log(`  - Realtime Platform: ${matchingDeparture.realtime_platform?.designation}`);
+                console.log(`  - Final Platform Used: ${platformInfo?.departureTrack || 'NONE'}`);
+              } else {
+                console.log(`NO PLATFORM DATA: No matching departure found for Line ${leg.line.number} at ${leg.from.name}`);
+              }
               
               enhancedLegs.push({
                 ...leg,
