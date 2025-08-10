@@ -120,7 +120,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const routes = await transitService.searchTrips(
         fromId,
         toId,
-        stockholmDateTime
+        stockholmDateTime,
+        data.leaveAt  // Pass the leaveAt parameter from form
       );
       
       res.json(routes);

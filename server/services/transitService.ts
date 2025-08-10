@@ -21,12 +21,13 @@ export class TransitService {
   
   // ONLY REAL SWEDISH TRANSPORT DATA - NO MOCK DATA EVER
 
-  async searchTrips(fromId: string, toId: string, dateTime?: Date): Promise<Itinerary[]> {
+  async searchTrips(fromId: string, toId: string, dateTime?: Date, leaveAt: boolean = true): Promise<Itinerary[]> {
     try {
       console.log(`REAL TRIP SEARCH: ${fromId} → ${toId} at ${dateTime?.toISOString()}`);
+    console.log(`SEARCH TYPE: ${leaveAt ? 'DEPART AT' : 'ARRIVE BY'} the specified time`);
       
       // Use ResRobot Trip API with station IDs for real journey planning
-      const trips = await this.searchRealTripsWithResRobot(fromId, toId, dateTime);
+      const trips = await this.searchRealTripsWithResRobot(fromId, toId, dateTime, !leaveAt);
       
       if (trips.length === 0) {
         throw new Error("No real trips found - ResRobot API returned empty results");
@@ -47,7 +48,8 @@ export class TransitService {
   private async searchRealTripsWithResRobot(
     fromId: string, 
     toId: string, 
-    dateTime?: Date
+    dateTime?: Date,
+    searchForArrival: boolean = false
   ): Promise<Itinerary[]> {
     
     const apiKey = process.env.RESROBOT_API_KEY?.trim();
@@ -61,7 +63,7 @@ export class TransitService {
       format: 'json',
       accessId: apiKey,
       numTrips: '5',
-      searchForArrival: '0'
+      searchForArrival: searchForArrival ? '1' : '0'  // 0 = depart at time, 1 = arrive by time
     });
 
     if (dateTime) {
@@ -74,6 +76,7 @@ export class TransitService {
 
     const url = `${this.RESROBOT_API_BASE}/trip?${params}`;
     console.log(`ResRobot Trip API: ${url.replace(apiKey, 'API_KEY_HIDDEN')}`);
+    console.log(`API PARAM searchForArrival: ${searchForArrival ? '1 (ARRIVE BY)' : '0 (DEPART AT)'}`);
 
     const response = await fetch(url);
     if (!response.ok) {
@@ -259,6 +262,17 @@ export class TransitService {
     return hours * 60 + minutes + Math.round(seconds / 60);
   }
 
+  private addMinutesToTime(timeString: string, minutes: number): string {
+    try {
+      const date = new Date(timeString);
+      date.setMinutes(date.getMinutes() + minutes);
+      return date.toISOString();
+    } catch (error) {
+      console.error('Error adding minutes to time:', error);
+      return timeString;
+    }
+  }
+
   private async enhanceTripsWithRealTimeData(trips: Itinerary[]): Promise<Itinerary[]> {
     console.log(`ENHANCING: ${trips.length} trips with real-time data from Trafiklab`);
     
@@ -290,7 +304,7 @@ export class TransitService {
                 enhancedLegs.push({
                   ...leg,
                   actualDeparture: matchingDeparture.realtime || matchingDeparture.scheduled,
-                  actualArrival: this.calculateArrivalTime(matchingDeparture.realtime || matchingDeparture.scheduled, leg.duration),
+                  actualArrival: this.addMinutesToTime(matchingDeparture.realtime || matchingDeparture.scheduled, leg.duration),
                   delay: matchingDeparture.delay || 0,
                   realTimeData: {
                     hasRealTimeData: matchingDeparture.is_realtime || false,
