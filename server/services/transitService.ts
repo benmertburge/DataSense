@@ -873,9 +873,13 @@ export class TransitService {
             }
           });
           
-          // FIXED: Use correct SL API datetime parameters based on official docs
+          // FIXED: Use correct SL API datetime parameters - debugging format
           const slDate = dateTime.toISOString().split('T')[0]; // YYYY-MM-DD
           const slTime = dateTime.toTimeString().substring(0, 5); // HH:MM
+          
+          console.log(`DEBUG: Original dateTime: ${dateTime.toISOString()}`);
+          console.log(`DEBUG: Local time string: ${dateTime.toString()}`);
+          console.log(`DEBUG: Extracted date: ${slDate}, time: ${slTime}`);
           
           queryParams.append('date', slDate);
           queryParams.append('time', slTime);
@@ -887,6 +891,7 @@ export class TransitService {
           }
           
           console.log(`Using ${searchType} time: ${slDate} ${slTime}`);
+          console.log(`Full SL API URL: ${this.SL_JOURNEY_API}/trips?${queryParams}`);
           
           const url = `${this.SL_JOURNEY_API}/trips?${queryParams}`;
           const response = await fetch(url);

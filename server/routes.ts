@@ -81,6 +81,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const data = journeyPlannerSchema.parse(req.body);
       const dateTime = new Date(`${data.date}T${data.time}`);
       
+      console.log(`Journey search request: ${data.from} → ${data.to}`);
+      console.log(`Raw date/time input: ${data.date}T${data.time}`);
+      console.log(`Parsed dateTime object: ${dateTime.toISOString()}`);
+      console.log(`Local time: ${dateTime.toString()}`);
+      console.log(`Search type: ${data.leaveAt ? 'departure' : 'arrival'}`);
+      
       // Use SL Journey Planner 2 - native Stockholm transport routing
       const routes = await transitService.searchRoutesWithSL(
         data.from, 
