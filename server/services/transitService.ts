@@ -1788,7 +1788,7 @@ export class TransitService {
   async getDepartures(areaId: string, dateTime?: Date): Promise<Departure[]> {
     try {
       // Use SL Real-time API for real departure data
-      const url = `${this.SL_REALTIME_API}/realtimedeparturesV4.json?key=${process.env.TRAFIKLAB_API_KEY}&siteid=${areaId}&timewindow=60`;
+      const url = `${this.SL_REALTIME_API}/realtimedeparturesV4.json?key=${process.env.SL_REALTIME_API_KEY}&siteid=${areaId}&timewindow=60`;
       
       console.log(`Fetching real departures from: ${url}`);
       
