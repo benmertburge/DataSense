@@ -573,7 +573,7 @@ export class TransitService {
       const time = dateTime.toTimeString().slice(0, 5);
       const isArrival = searchType === 'arrival' ? '1' : '0';
       
-      const url = `${this.RESROBOT_API}/trip?originId=${fromStation.id}&destId=${toStation.id}&date=${date}&time=${time}&searchForArrival=${isArrival}&format=json&accessId=${process.env.RESROBOT_API_KEY}&numF=3&numB=0`;
+      const url = `${this.RESROBOT_API}/trip?originExtId=${fromStation.id}&destExtId=${toStation.id}&date=${date}&time=${time}&searchForArrival=${isArrival}&format=json&accessId=${process.env.RESROBOT_API_KEY}&numF=3&numB=0`;
       
       console.log(`ResRobot trip search: ${from} (${fromStation.id}) → ${to} (${toStation.id}), ${searchType} at ${time}`);
       
@@ -721,20 +721,8 @@ export class TransitService {
     // REORDERED: Check COMMUTER TRAIN connections FIRST before metro
     // This ensures Sundbyberg→Stockholm City uses pendeltåg, not T-bana
     
-    // CRITICAL: Check for commuter train connections FIRST - Sundbyberg to Stockholm City is DIRECT pendeltåg
-    if (this.isCommuterTrainRoute(from.name, to.name)) {
-      const trainLine = this.mockLines.find(l => l.mode === "TRAIN" && l.number === "J37");
-      if (trainLine) {
-        console.log(`Found DIRECT commuter train connection: ${trainLine.name} - NO TRANSFERS NEEDED`);
-        return {
-          direct: true,
-          line: trainLine,
-          travelTime: 15, // Direct train is much faster
-          transferWalk: 0,
-          delay: Math.floor(Math.random() * 3), // 0-3 min delay
-        };
-      }
-    }
+    // USE ONLY REAL DATA: Remove fake route planning and use ResRobot API exclusively
+    throw new Error("Route planning disabled - using ResRobot API only for authentic Swedish transport data");
 
     // Multi-leg journey only if absolutely necessary
     console.log(`Multi-leg journey required: ${from.name} → ${to.name}`);
