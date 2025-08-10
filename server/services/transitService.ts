@@ -1788,7 +1788,8 @@ export class TransitService {
   async getDepartures(areaId: string, dateTime?: Date): Promise<Departure[]> {
     try {
       // Use Trafiklab Realtime Timetables API for real departure data
-      const url = `${this.SL_REALTIME_API}/departures/${areaId}?key=4c35826c6a514714ba49303d3ff08114`;
+      const timeParam = dateTime ? this.formatTrafilabRealtimeTime(dateTime) : '';
+      const url = `${this.SL_REALTIME_API}/departures/${areaId}${timeParam}?key=4c35826c6a514714ba49303d3ff08114`;
       
       console.log(`Fetching real departures from: ${url}`);
       
@@ -1842,8 +1843,8 @@ export class TransitService {
     }
   }
   
-  private formatTrafilabTime(dateTime: Date): string {
-    // Format time for Trafiklab API: /YYYY-MM-DDTHH:mm
+  private formatTrafilabRealtimeTime(dateTime: Date): string {
+    // Format time for Trafiklab Realtime API: /YYYY-MM-DDTHH:mm
     const stockholmTime = new Intl.DateTimeFormat('sv-SE', {
       timeZone: 'Europe/Stockholm',
       year: 'numeric',
