@@ -152,8 +152,8 @@ export class TransitService {
         console.log(`DEBUG: ResRobot Times - Origin date: ${leg.Origin?.date}, time: ${leg.Origin?.time}`);
         console.log(`DEBUG: ResRobot Times - Destination date: ${leg.Destination?.date}, time: ${leg.Destination?.time}`);
         console.log(`DEBUG: ResRobot Stations - From: ${leg.Origin?.name}, To: ${leg.Destination?.name}`);
-        // ResRobot doesn't provide platform info in this API endpoint
-        console.log(`DEBUG: ResRobot provides no platform data in Trip API`);
+        // Log transport mode detection for debugging
+        console.log(`DEBUG: Product category "${product?.catOutS}" -> Mode: ${this.mapResRobotProductToMode(product)} -> Color: ${this.getLineColor(product)}`);
         
         legs.push({
           kind: 'TRANSIT',
@@ -207,9 +207,10 @@ export class TransitService {
     
     const category = product.catOutS.toLowerCase();
     
+    // Check for spårvagn/tram first since it's more specific than tåg
+    if (category.includes('spårvagn') || category.includes('spårväg') || category.includes('tram')) return "TRAM";
     if (category.includes('tunnelbana') || category.includes('metro')) return "METRO";
     if (category.includes('pendeltåg') || category.includes('tåg') || category.includes('train')) return "TRAIN";
-    if (category.includes('spårvagn') || category.includes('tram')) return "TRAM";
     if (category.includes('båt') || category.includes('ferry')) return "FERRY";
     
     return "BUS";
