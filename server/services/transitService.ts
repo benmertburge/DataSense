@@ -34,6 +34,7 @@ interface SLDeparture {
 
 export class TransitService {
   private readonly SL_API_BASE = "https://transport.integration.sl.se/v1";
+  private readonly TRAFIKLAB_API_BASE = "https://api.sl.se/api2";
   private cachedSites: StopArea[] = [];
   private cacheExpiry: number = 0;
   private readonly CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
@@ -114,7 +115,7 @@ export class TransitService {
       const count = await db.$count(stopAreas);
       console.log(`Found ${count} stations in database`);
 
-      if (count < 50) { // If we have fewer than 50 stations, sync from SL API
+      if (count < 5000) { // If we have fewer than 5000 stations, sync from SL API
         console.log("Syncing stations from SL API to database...");
         await this.syncStationsToDatabase();
       }
@@ -137,9 +138,9 @@ export class TransitService {
       const sites: SLSite[] = await response.json();
       console.log(`Fetched ${sites.length} stations from SL API`);
 
-      // Insert stations in batches
+      // Insert ALL stations, not just first 1000
       const batchSize = 100;
-      for (let i = 0; i < Math.min(sites.length, 1000); i += batchSize) {
+      for (let i = 0; i < sites.length; i += batchSize) {
         const batch = sites.slice(i, i + batchSize);
         const stationData = batch.map(site => ({
           id: site.id.toString(),
@@ -160,7 +161,7 @@ export class TransitService {
         });
       }
 
-      console.log("Successfully synced stations to database");
+      console.log(`Successfully synced ${sites.length} stations to database`);
     } catch (error) {
       console.error("Error syncing stations:", error);
     }
@@ -192,21 +193,44 @@ export class TransitService {
   }> {
     await this.initializeDatabase();
     
-    // Find stop areas from database
-    const [fromArea] = await db
+    // Find stop areas from database - try multiple approaches
+    let fromArea = await db
       .select()
       .from(stopAreas)
       .where(ilike(stopAreas.name, `%${from}%`))
-      .limit(1);
+      .limit(1)
+      .then(res => res[0]);
       
-    const [toArea] = await db
+    let toArea = await db
       .select()
       .from(stopAreas)
       .where(ilike(stopAreas.name, `%${to}%`))
-      .limit(1);
+      .limit(1)
+      .then(res => res[0]);
+
+    // If exact search fails, try fallback stations
+    if (!fromArea) {
+      const fallbackFrom = this.getFallbackStations().find(station => 
+        station.name.toLowerCase().includes(from.toLowerCase())
+      );
+      if (fallbackFrom) {
+        await db.insert(stopAreas).values(fallbackFrom).onConflictDoNothing();
+        fromArea = fallbackFrom;
+      }
+    }
+    
+    if (!toArea) {
+      const fallbackTo = this.getFallbackStations().find(station => 
+        station.name.toLowerCase().includes(to.toLowerCase())
+      );
+      if (fallbackTo) {
+        await db.insert(stopAreas).values(fallbackTo).onConflictDoNothing();
+        toArea = fallbackTo;
+      }
+    }
 
     if (!fromArea || !toArea) {
-      console.error(`Route search failed - from: "${from}", to: "${to}"`);
+      console.error(`Route search failed - from: "${from}" (${fromArea ? 'found' : 'not found'}), to: "${to}" (${toArea ? 'found' : 'not found'})`);
       throw new Error("Stop areas not found");
     }
 
