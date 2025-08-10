@@ -83,14 +83,26 @@ export class TransitService {
 
   private getFallbackStations(): StopArea[] {
     return [
-      { id: "9001", name: "Odenplan", lat: "59.3428", lon: "18.0484", type: "METROSTN" },
+      // Metro stations (Tunnelbana)
+      { id: "9001", name: "Stockholm Odenplan", lat: "59.3428", lon: "18.0484", type: "METROSTN" },
       { id: "9003", name: "Kungsträdgården", lat: "59.3312", lon: "18.0745", type: "METROSTN" },
       { id: "9004", name: "T-Centralen", lat: "59.3312", lon: "18.0592", type: "METROSTN" },
       { id: "9192", name: "Sundbyberg", lat: "59.3616", lon: "17.9706", type: "METROSTN" },
-      { id: "9180", name: "Flemingsberg", lat: "59.2175", lon: "17.9447", type: "RAILWSTN" },
+      { id: "9117", name: "Slussen", lat: "59.3199", lon: "18.0717", type: "METROSTN" },
+      { id: "9170", name: "Gamla stan", lat: "59.3238", lon: "18.0686", type: "METROSTN" },
+      { id: "1031", name: "Sergels torg", lat: "59.3326", lon: "18.0634", type: "METROSTN" },
+      { id: "1029", name: "Frihamnen", lat: "59.3469", lon: "18.1089", type: "BUSTERM" },
+      
+      // Railway stations (Pendeltåg/Commuter trains)
       { id: "9005", name: "Stockholm Central", lat: "59.3303", lon: "18.0591", type: "RAILWSTN" },
+      { id: "9180", name: "Flemingsberg", lat: "59.2175", lon: "17.9447", type: "RAILWSTN" },
       { id: "9200", name: "Tumba", lat: "59.1994", lon: "17.8344", type: "RAILWSTN" },
       { id: "9201", name: "Huddinge", lat: "59.2364", lon: "17.9856", type: "RAILWSTN" },
+      { id: "9202", name: "Älvsjö", lat: "59.2472", lon: "17.9614", type: "RAILWSTN" },
+      { id: "9203", name: "Årstaberg", lat: "59.2797", lon: "18.0447", type: "RAILWSTN" },
+      { id: "9002", name: "Arlanda Airport", lat: "59.6519", lon: "17.9186", type: "RAILWSTN" },
+      
+      // Bus terminals
       { id: "1080", name: "Cityterminalen", lat: "59.3317", lon: "18.0576", type: "BUSTERM" },
     ];
   }
@@ -129,27 +141,46 @@ export class TransitService {
 
   private async syncStationsToDatabase(): Promise<void> {
     try {
-      const response = await fetch(`${this.SL_API_BASE}/sites`);
-      if (!response.ok) {
-        console.error("Failed to fetch from SL API");
-        return;
+      // Try Trafiklab API first if we have the key
+      if (process.env.TRAFIKLAB_API_KEY) {
+        console.log("Using Trafiklab API for station data...");
+        await this.syncFromTrafiklab();
+      } else {
+        console.log("Using SL Transport API for station data...");
+        await this.syncFromSLTransport();
       }
+    } catch (error) {
+      console.error("Error syncing stations:", error);
+      // Insert fallback stations as a last resort
+      await this.insertFallbackStations();
+    }
+  }
 
-      const sites: SLSite[] = await response.json();
-      console.log(`Fetched ${sites.length} stations from SL API`);
+  private async syncFromTrafiklab(): Promise<void> {
+    const response = await fetch(`${this.TRAFIKLAB_API_BASE}/typeahead.json?key=${process.env.TRAFIKLAB_API_KEY}&searchstring=stockholm&stationsonly=true&maxresults=1000`);
+    
+    if (!response.ok) {
+      throw new Error(`Trafiklab API failed: ${response.status}`);
+    }
 
-      // Insert ALL stations, not just first 1000
-      const batchSize = 100;
-      for (let i = 0; i < sites.length; i += batchSize) {
-        const batch = sites.slice(i, i + batchSize);
-        const stationData = batch.map(site => ({
-          id: site.id.toString(),
-          name: site.name,
-          lat: site.lat.toString(),
-          lon: site.lon.toString(),
-          type: this.determineStationType(site.name)
+    const data = await response.json();
+    const sites = data.ResponseData || [];
+    console.log(`Fetched ${sites.length} stations from Trafiklab API`);
+
+    const batchSize = 100;
+    for (let i = 0; i < sites.length; i += batchSize) {
+      const batch = sites.slice(i, i + batchSize);
+      const stationData = batch
+        .filter((site: any) => site.SiteId && site.Name && site.X && site.Y)
+        .map((site: any) => ({
+          id: site.SiteId.toString(),
+          name: site.Name,
+          lat: site.Y.toString(),
+          lon: site.X.toString(),
+          type: this.determineStationType(site.Name)
         }));
 
+      if (stationData.length > 0) {
         await db.insert(stopAreas).values(stationData).onConflictDoUpdate({
           target: stopAreas.id,
           set: {
@@ -160,11 +191,54 @@ export class TransitService {
           },
         });
       }
-
-      console.log(`Successfully synced ${sites.length} stations to database`);
-    } catch (error) {
-      console.error("Error syncing stations:", error);
     }
+
+    console.log(`Successfully synced ${sites.length} stations from Trafiklab`);
+  }
+
+  private async syncFromSLTransport(): Promise<void> {
+    const response = await fetch(`${this.SL_API_BASE}/sites`);
+    if (!response.ok) {
+      throw new Error(`SL Transport API failed: ${response.status}`);
+    }
+
+    const sites: SLSite[] = await response.json();
+    console.log(`Fetched ${sites.length} stations from SL Transport API`);
+
+    const batchSize = 100;
+    for (let i = 0; i < sites.length; i += batchSize) {
+      const batch = sites.slice(i, i + batchSize);
+      const stationData = batch
+        .filter(site => site.id && site.name && site.lat && site.lon)
+        .map(site => ({
+          id: site.id.toString(),
+          name: site.name,
+          lat: site.lat.toString(),
+          lon: site.lon.toString(),
+          type: this.determineStationType(site.name)
+        }));
+
+      if (stationData.length > 0) {
+        await db.insert(stopAreas).values(stationData).onConflictDoUpdate({
+          target: stopAreas.id,
+          set: {
+            name: sql`excluded.name`,
+            lat: sql`excluded.lat`,
+            lon: sql`excluded.lon`,
+            type: sql`excluded.type`,
+          },
+        });
+      }
+    }
+
+    console.log(`Successfully synced ${sites.length} stations from SL Transport API`);
+  }
+
+  private async insertFallbackStations(): Promise<void> {
+    console.log("Inserting fallback stations...");
+    const fallbackStations = this.getFallbackStations();
+    await db.insert(stopAreas).values(fallbackStations).onConflictDoNothing();
+    console.log(`Inserted ${fallbackStations.length} fallback stations`);
   }
 
   async searchSites(query: string): Promise<StopArea[]> {
