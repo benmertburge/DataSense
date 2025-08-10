@@ -48,9 +48,9 @@ export class TransitService {
     { id: "L5", number: "17", mode: "METRO", name: "T17 Åkeshov-Skarpnäck", operatorId: "SL" },
     { id: "L6", number: "18", mode: "METRO", name: "T18 Alvik-Farsta strand", operatorId: "SL" },
     { id: "L7", number: "19", mode: "METRO", name: "T19 Hässelby strand-Hagsätra", operatorId: "SL" },
-    { id: "L8", number: "J35", mode: "TRAIN", name: "Commuter train", operatorId: "SL" },
-    { id: "L9", number: "J36", mode: "TRAIN", name: "Commuter train towards Nynäshamn", operatorId: "SL" },
-    { id: "L10", number: "J38", mode: "TRAIN", name: "Commuter train towards Bålsta", operatorId: "SL" },
+    { id: "L8", number: "J37", mode: "TRAIN", name: "Pendeltåg 37", operatorId: "SL" },
+    { id: "L9", number: "J36", mode: "TRAIN", name: "Pendeltåg 36", operatorId: "SL" },
+    { id: "L10", number: "J38", mode: "TRAIN", name: "Pendeltåg 38", operatorId: "SL" },
     { id: "L11", number: "AE", mode: "TRAIN", name: "Arlanda Express", operatorId: "AE" },
     { id: "L12", number: "43", mode: "BUS", name: "Bus 43", operatorId: "SL" },
     { id: "L13", number: "583", mode: "BUS", name: "Airport Bus 583", operatorId: "SL" },
@@ -723,7 +723,7 @@ export class TransitService {
     
     // CRITICAL: Check for commuter train connections FIRST - Sundbyberg to Stockholm City is DIRECT pendeltåg
     if (this.isCommuterTrainRoute(from.name, to.name)) {
-      const trainLine = this.mockLines.find(l => l.mode === "TRAIN" && l.number === "J35");
+      const trainLine = this.mockLines.find(l => l.mode === "TRAIN" && l.number === "J37");
       if (trainLine) {
         console.log(`Found DIRECT commuter train connection: ${trainLine.name} - NO TRANSFERS NEEDED`);
         return {
@@ -907,22 +907,20 @@ export class TransitService {
     // For commuter trains (J-lines), determine correct terminal direction
     if (line.mode === "TRAIN" && line.number.startsWith("J")) {
       
-      // J35 line: Södertälje Syd ↔ Uppsala via Stockholm C
-      if (line.number === "J35") {
-        // Going towards Stockholm City from southern stations
-        if (fromLower.includes('flemingsberg') || fromLower.includes('huddinge') || 
-            fromLower.includes('tumba') || fromLower.includes('södertälje')) {
+      // J37 line: Real SL pendeltåg line serving Sundbyberg-Stockholm City route
+      if (line.number === "J37") {
+        // Going towards Stockholm City from northern/western stations
+        if (fromLower.includes('sundbyberg') || fromLower.includes('solna') || 
+            fromLower.includes('ulriksdal') || fromLower.includes('helenelund')) {
           return "towards Stockholm City";
         }
-        // Going towards Uppsala from Stockholm or points north  
-        else if (fromLower.includes('stockholm') || fromLower.includes('solna') ||
-                 fromLower.includes('uplands väsby') || fromLower.includes('märsta')) {
-          return "towards Uppsala";
+        // Going towards Bålsta from Stockholm or southern stations  
+        else if (fromLower.includes('stockholm') || fromLower.includes('city')) {
+          return "towards Bålsta";
         }
-        // Going towards Södertälje from Stockholm/north
-        else if (toLower.includes('flemingsberg') || toLower.includes('södertälje') ||
-                 toLower.includes('tumba') || toLower.includes('huddinge')) {
-          return "towards Södertälje";
+        // Default based on destination
+        else if (toLower.includes('stockholm') || toLower.includes('city')) {
+          return "towards Stockholm City";
         }
       }
       
