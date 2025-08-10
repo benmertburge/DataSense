@@ -319,34 +319,27 @@ export class TransitService {
       throw new Error("TRAFIKLAB_API_KEY is required");
     }
 
-    // Use SL Realtime API format (station site IDs for metro/bus/tram)
-    const url = `https://api.sl.se/api2/realtimedeparturesV4.json?key=${apiKey}&siteid=${stationId}&timewindow=60`;
-    console.log(`Fetching SL real-time departures: ${url.replace(apiKey, 'API_KEY_HIDDEN')}`);
+    // Format time for Trafiklab API (YYYY-MM-DDTHH:mm)
+    const timeParam = new Date(plannedTime).toISOString().slice(0, 16);
+    
+    // Use correct Trafiklab API format: /v1/departures/{area id}/{time}?key={key}
+    const url = `https://realtime-api.trafiklab.se/v1/departures/${stationId}/${timeParam}?key=${apiKey}`;
+    console.log(`Fetching Trafiklab real-time departures: ${url.replace(apiKey, 'API_KEY_HIDDEN')}`);
     
     const response = await fetch(url);
     if (!response.ok) {
-      throw new Error(`SL Realtime API failed: ${response.status}`);
+      throw new Error(`Trafiklab API failed: ${response.status}`);
     }
 
     const data = await response.json();
-    
-    // Combine all transport modes
-    const departures = [
-      ...(data.ResponseData?.Metros || []),
-      ...(data.ResponseData?.Buses || []),
-      ...(data.ResponseData?.Trains || []),
-      ...(data.ResponseData?.Trams || [])
-    ];
-    
-    return departures;
+    return data.departures || [];
   }
 
   private findMatchingDeparture(realTimeData: any[], lineNumber: string, plannedTime: string): any | null {
-    // Match by line number/name
+    // Match by route designation (line number) from Trafiklab API
     return realTimeData.find(departure => {
-      return departure.LineNumber === lineNumber || 
-             departure.Destination?.includes(lineNumber) ||
-             departure.JourneyNumber === lineNumber;
+      return departure.route?.designation === lineNumber ||
+             departure.route?.name === lineNumber;
     }) || null;
   }
 
