@@ -232,11 +232,11 @@ export class TransitService {
   private getLineColor(product: any): string {
     const mode = this.mapResRobotProductToMode(product);
     
-    // Authentic SL (Stockholm Public Transport) colors
+    // Fixed colors as requested: orange, blue, black, pink
     switch (mode) {
-      case "METRO": return "#0089d0"; // SL Blue for metro/tunnelbana  
-      case "TRAIN": return "#ec619f"; // SL Pink for pendeltåg/trains
-      case "BUS": return "#d71d24"; // SL Red for buses
+      case "METRO": return "#0089d0"; // Blue for metro/tunnelbana  
+      case "TRAIN": return "#ec619f"; // Pink for pendeltåg/trains
+      case "BUS": return "#000000"; // Black for buses
       case "TRAM": return "#FF8C00"; // Orange for trams/spårvagn
       case "FERRY": return "#20B2AA"; // Teal for ferries
       default: return "#666666";
