@@ -832,12 +832,14 @@ export class TransitService {
   }
 
   // NEW SL Journey Planner API functions
+  // Enhanced search using BOTH SL Journey Planner AND Trafiklab Timetables
   async searchRoutesWithSL(from: string, to: string, dateTime: Date, searchType: 'departure' | 'arrival'): Promise<{
     best: Itinerary;
     alternatives: Itinerary[];
   }> {
     try {
-      console.log(`Starting SL Journey Planner search: ${from} → ${to}`);
+      console.log(`DUAL API SEARCH: SL Journey Planner + Trafiklab Timetables`);
+      console.log(`Starting search: ${from} → ${to} at ${dateTime.toISOString()}`);
 
       // Search for SL stations first using SL API
       const [fromSites, toSites] = await Promise.all([
@@ -877,13 +879,23 @@ export class TransitService {
             }
           });
           
-          // Use the Stockholm dateTime that was already created correctly in routes.ts
-          // Extract date and time from the properly formatted Stockholm time
-          const slDate = dateTime.toISOString().split('T')[0]; // YYYY-MM-DD  
-          const slTime = dateTime.toISOString().split('T')[1].substring(0, 5); // HH:MM
+          // CRITICAL FIX: For SL API, convert the Stockholm time BACK to Stockholm local time
+          // The dateTime from routes.ts is in UTC, we need Stockholm local time for SL API
+          const stockholmLocalTime = new Intl.DateTimeFormat('sv-SE', {
+            timeZone: 'Europe/Stockholm',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+          }).formatToParts(dateTime);
           
-          console.log(`DIRECT SL API: Using Stockholm dateTime: ${dateTime.toISOString()}`);
-          console.log(`DIRECT SL API: Extracted date: ${slDate}, time: ${slTime}`);
+          const slDate = `${stockholmLocalTime.find(p => p.type === 'year')?.value}-${stockholmLocalTime.find(p => p.type === 'month')?.value}-${stockholmLocalTime.find(p => p.type === 'day')?.value}`;
+          const slTime = `${stockholmLocalTime.find(p => p.type === 'hour')?.value}:${stockholmLocalTime.find(p => p.type === 'minute')?.value}`;
+          
+          console.log(`SL API TIME FIX: Input UTC: ${dateTime.toISOString()}`);
+          console.log(`SL API TIME FIX: Stockholm local: ${slDate} ${slTime}`);
           
           queryParams.append('date', slDate);
           queryParams.append('time', slTime);
@@ -1718,8 +1730,8 @@ export class TransitService {
         return this.getFallbackDepartures(areaId);
       }
       
-      // Convert Trafiklab departures to our format
-      return data.departures.slice(0, 10).map((dep: any, index: number) => ({
+      // Convert Trafiklab departures to our format with real-time data
+      const realDepartures = data.departures.slice(0, 10).map((dep: any, index: number) => ({
         stopAreaId: areaId,
         line: {
           id: `TL_${dep.route?.designation || 'unknown'}`,
@@ -1737,6 +1749,9 @@ export class TransitService {
         platform: dep.scheduled_platform?.designation || dep.realtime_platform?.designation || 'Unknown',
         delayMinutes: Math.floor((dep.delay || 0) / 60) // Convert seconds to minutes
       }));
+      
+      console.log(`Trafiklab Timetables API returned ${realDepartures.length} real departures with live data`);
+      return realDepartures;
       
     } catch (error) {
       console.error("Error fetching real departures:", error);
