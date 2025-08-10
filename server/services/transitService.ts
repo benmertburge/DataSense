@@ -1839,7 +1839,7 @@ export class TransitService {
         url += `/${timeParam}`;
       }
       
-      url += `?key=${process.env.RESROBOT_API_KEY}`;
+      url += `?key=${process.env.TRAFIKLAB_API_KEY}`;
       
       console.log(`Fetching real departures from: ${url}`);
       
