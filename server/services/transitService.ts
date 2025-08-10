@@ -319,19 +319,26 @@ export class TransitService {
       throw new Error("TRAFIKLAB_API_KEY is required");
     }
 
-    // Format time for Trafiklab API (YYYY-MM-DDTHH:mm)
-    const timeParam = new Date(plannedTime).toISOString().slice(0, 16);
-    
-    const url = `https://realtime-api.trafiklab.se/v1/departures/${stationId}/${timeParam}?key=${apiKey}`;
-    console.log(`Fetching real-time departures: ${url.replace(apiKey, 'API_KEY_HIDDEN')}`);
+    // Use SL Realtime API format (station site IDs for metro/bus/tram)
+    const url = `https://api.sl.se/api2/realtimedeparturesV4.json?key=${apiKey}&siteid=${stationId}&timewindow=60`;
+    console.log(`Fetching SL real-time departures: ${url.replace(apiKey, 'API_KEY_HIDDEN')}`);
     
     const response = await fetch(url);
     if (!response.ok) {
-      throw new Error(`Trafiklab API failed: ${response.status}`);
+      throw new Error(`SL Realtime API failed: ${response.status}`);
     }
 
     const data = await response.json();
-    return data.departures || [];
+    
+    // Combine all transport modes
+    const departures = [
+      ...(data.ResponseData?.Metros || []),
+      ...(data.ResponseData?.Buses || []),
+      ...(data.ResponseData?.Trains || []),
+      ...(data.ResponseData?.Trams || [])
+    ];
+    
+    return departures;
   }
 
   private findMatchingDeparture(realTimeData: any[], lineNumber: string, plannedTime: string): any | null {
@@ -358,20 +365,16 @@ export class TransitService {
     }
     
     try {
-      // ResRobot times come in format like "08:30:00" or "2025-08-11T08:30:00"
-      if (timeString.includes('T')) {
-        // Already in ISO format
-        return new Date(timeString).toISOString();
-      } else if (timeString.includes(':')) {
-        // Time only format like "08:30:00"
-        const today = new Date();
-        const [hours, minutes, seconds = '0'] = timeString.split(':');
-        today.setHours(parseInt(hours), parseInt(minutes), parseInt(seconds), 0);
-        return today.toISOString();
-      } else {
-        // Fallback
-        return new Date(timeString).toISOString();
+      // ResRobot times are usually in format "YYYY-MM-DD HH:MM:SS"
+      const cleanTime = timeString.replace(' ', 'T');
+      const parsed = new Date(cleanTime);
+      
+      if (isNaN(parsed.getTime())) {
+        console.warn(`Invalid ResRobot time: "${timeString}", using current time`);
+        return new Date().toISOString();
       }
+      
+      return parsed.toISOString();
     } catch (error) {
       console.error(`Failed to parse ResRobot time "${timeString}":`, error);
       return new Date().toISOString();
