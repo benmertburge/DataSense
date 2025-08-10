@@ -348,83 +348,123 @@ export class TransitService {
   }
 
   async searchStopAreas(query: string): Promise<StopArea[]> {
-    // Load real Stockholm stations from database or populate if empty
-    await this.ensureStockholmStationsLoaded();
+    console.log(`REAL API SEARCH: Searching for stations matching "${query}"`);
     
-    // Search in database
-    const results = await db.select().from(stopAreas)
-      .where(ilike(stopAreas.name, `%${query}%`))
-      .limit(20);
-    
-    console.log(`Found ${results.length} Stockholm stations matching "${query}"`);
-    return results;
+    // Use trip search to find real stations - this API works with your key
+    try {
+      const results = await this.searchStationsUsingTripAPI(query);
+      console.log(`REAL API SUCCESS: Found ${results.length} stations from live Swedish transport APIs`);
+      return results;
+    } catch (error) {
+      console.error("REAL API FAILED:", error);
+      throw new Error(`Cannot fetch real station data: ${error}`);
+    }
   }
 
-  private async ensureStockholmStationsLoaded(): Promise<void> {
-    // Check if we have stations in database
-    const count = await db.select({ count: sql<number>`count(*)` }).from(stopAreas);
-    
-    if (count[0]?.count > 0) {
-      return; // Already loaded
+  private async searchStationsUsingTripAPI(query: string): Promise<StopArea[]> {
+    const apiKey = process.env.RESROBOT_API_KEY;
+    if (!apiKey) {
+      throw new Error("RESROBOT_API_KEY required for real station data");
     }
-    
-    console.log("Loading real Stockholm transport stations...");
-    
-    // Real Stockholm transport stations with actual coordinates from SL  
-    const stockholmStations = [
-      // Central Stockholm & Pendeltåg
-      { id: '9001', name: 'T-Centralen', lat: '59.331455', lng: '18.058972' },
-      { id: '9005', name: 'Stockholm Central', lat: '59.330136', lng: '18.058151' },
-      { id: '9180', name: 'Flemingsberg', lat: '59.219048', lng: '17.947207' },
-      { id: '9192', name: 'Sundbyberg', lat: '59.361347', lng: '17.971134' },
-      { id: '9280', name: 'Älvsjö', lat: '59.249603', lng: '18.013056' },
-      { id: '9117', name: 'Huddinge', lat: '59.236842', lng: '18.007944' },
-      { id: '9506', name: 'Sollentuna', lat: '59.428131', lng: '17.951072' },
-      { id: '9507', name: 'Upplands Väsby', lat: '59.518789', lng: '17.912194' },
-      { id: '9508', name: 'Märsta', lat: '59.617386', lng: '17.854664' },
-      { id: '9700', name: 'Arlanda Central', lat: '59.649942', lng: '17.929664' },
-      { id: '9181', name: 'Odenplan', lat: '59.343434', lng: '18.049069' },
-      
-      // Metro Blue Line (T10-T11)
-      { id: '9011', name: 'Kungsträdgården', lat: '59.331680', lng: '18.072639' },
-      { id: '9012', name: 'Rådhuset', lat: '59.332875', lng: '18.050306' },
-      { id: '9013', name: 'Fridhemsplan', lat: '59.334564', lng: '18.035556' },
-      { id: '9014', name: 'Stadshagen', lat: '59.337361', lng: '18.020583' },
-      { id: '9015', name: 'Västra skogen', lat: '59.343111', lng: '18.008361' },
-      { id: '9016', name: 'Solna centrum', lat: '59.359528', lng: '18.000222' },
-      { id: '9303', name: 'Akalla', lat: '59.414167', lng: '17.906944' },
-      { id: '9304', name: 'Hjulsta', lat: '59.409722', lng: '17.879167' },
-      
-      // Metro Red Line (T13-T14)  
-      { id: '9021', name: 'Slussen', lat: '59.320106', lng: '18.071898' },
-      { id: '9022', name: 'Mariatorget', lat: '59.316389', lng: '18.065278' },
-      { id: '9023', name: 'Zinkensdamm', lat: '59.315278', lng: '18.055556' },
-      { id: '9024', name: 'Hornstull', lat: '59.313889', lng: '18.035833' },
-      { id: '9320', name: 'Fruängen', lat: '59.278611', lng: '17.968333' },
-      { id: '9321', name: 'Norsborg', lat: '59.244167', lng: '17.830556' },
-      { id: '9601', name: 'Ropsten', lat: '59.357778', lng: '18.103056' },
-      { id: '9602', name: 'Mörby centrum', lat: '59.404167', lng: '18.130833' },
-      { id: '9193', name: 'Östermalmstorg', lat: '59.334896', lng: '18.074699' },
-      
-      // Metro Green Line (T17-T19)
-      { id: '9031', name: 'Gamla stan', lat: '59.323067', lng: '18.068581' },
-      { id: '9032', name: 'Medborgarplatsen', lat: '59.314444', lng: '18.079167' },
-      { id: '9033', name: 'Skanstull', lat: '59.309722', lng: '18.084167' },
-      { id: '9034', name: 'Gullmarsplan', lat: '59.299167', lng: '18.097222' },
-      { id: '9330', name: 'Skarpnäck', lat: '59.270556', lng: '18.158889' },
-      { id: '9331', name: 'Farsta strand', lat: '59.244444', lng: '18.093333' },
-      { id: '9401', name: 'Alvik', lat: '59.333889', lng: '17.982778' },
-      { id: '9402', name: 'Hässelby strand', lat: '59.365556', lng: '17.837778' },
-      { id: '9403', name: 'Hagsätra', lat: '59.293611', lng: '18.116944' },
-      
-      // Major bus terminals & tram stops
-      { id: '1051', name: 'Cityterminalen', lat: '59.331197', lng: '18.057244' },
-      { id: '1052', name: 'Roslagstull', lat: '59.353167', lng: '18.081167' },
-      { id: '1054', name: 'Södermalm', lat: '59.316667', lng: '18.066667' }
+
+    // Use coordinate searches around Stockholm to discover stations
+    const stockholmAreas = [
+      { name: "Stockholm City", lat: 59.3293, lng: 18.0686 },
+      { name: "Stockholm North", lat: 59.3500, lng: 18.0500 },
+      { name: "Stockholm South", lat: 59.3000, lng: 18.0800 },
+      { name: "Stockholm West", lat: 59.3300, lng: 17.9800 },
+      { name: "Stockholm East", lat: 59.3300, lng: 18.1500 }
     ];
+
+    const allStations: StopArea[] = [];
+    const seenStations = new Set<string>();
+
+    // Search each area to get comprehensive station coverage
+    for (const area of stockholmAreas) {
+      try {
+        console.log(`Scanning ${area.name} for real transport stations...`);
+        
+        // Use trip search with nearby coordinates to discover stations
+        const params = new URLSearchParams({
+          originCoordLat: area.lat.toString(),
+          originCoordLong: area.lng.toString(),
+          destCoordLat: (area.lat + 0.01).toString(), // Small offset to trigger search
+          destCoordLong: (area.lng + 0.01).toString(),
+          format: 'json',
+          accessId: apiKey,
+          numTrips: '10'
+        });
+
+        const url = `${this.RESROBOT_API_BASE}/trip?${params}`;
+        const response = await fetch(url);
+        
+        if (!response.ok) continue;
+        
+        const data = await response.json();
+        if (data.errorCode || !data.Trip) continue;
+
+        // Extract all stations from trip legs
+        const trips = Array.isArray(data.Trip) ? data.Trip : [data.Trip];
+        
+        for (const trip of trips) {
+          if (!trip.LegList?.Leg) continue;
+          
+          const legs = Array.isArray(trip.LegList.Leg) ? trip.LegList.Leg : [trip.LegList.Leg];
+          
+          for (const leg of legs) {
+            // Extract origin station
+            if (leg.Origin?.name && leg.Origin?.lat && leg.Origin?.lon) {
+              const stationKey = `${leg.Origin.name}_${leg.Origin.lat}_${leg.Origin.lon}`;
+              if (!seenStations.has(stationKey) && 
+                  leg.Origin.name.toLowerCase().includes(query.toLowerCase())) {
+                
+                seenStations.add(stationKey);
+                allStations.push({
+                  id: leg.Origin.extId || leg.Origin.id || `station_${allStations.length}`,
+                  name: leg.Origin.name,
+                  lat: leg.Origin.lat.toString(),
+                  lng: leg.Origin.lon.toString()
+                });
+              }
+            }
+            
+            // Extract destination station  
+            if (leg.Destination?.name && leg.Destination?.lat && leg.Destination?.lon) {
+              const stationKey = `${leg.Destination.name}_${leg.Destination.lat}_${leg.Destination.lon}`;
+              if (!seenStations.has(stationKey) && 
+                  leg.Destination.name.toLowerCase().includes(query.toLowerCase())) {
+                
+                seenStations.add(stationKey);
+                allStations.push({
+                  id: leg.Destination.extId || leg.Destination.id || `station_${allStations.length}`,
+                  name: leg.Destination.name,
+                  lat: leg.Destination.lat.toString(),
+                  lng: leg.Destination.lon.toString()
+                });
+              }
+            }
+          }
+        }
+        
+        // Add small delay to be nice to the API
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+      } catch (error) {
+        console.log(`Failed to scan ${area.name}: ${error}`);
+        continue;
+      }
+    }
+
+    // Filter for Stockholm region coordinates
+    const stockholmStations = allStations.filter(station => {
+      const lat = parseFloat(station.lat);
+      const lng = parseFloat(station.lng);
+      return lat >= 59.0 && lat <= 60.0 && lng >= 17.5 && lng <= 18.5;
+    });
+
+    console.log(`REAL STATION DISCOVERY: Found ${stockholmStations.length} authentic Swedish transport stations`);
     
-    await db.insert(stopAreas).values(stockholmStations);
-    console.log(`Loaded ${stockholmStations.length} real Stockholm transport stations`);
+    return stockholmStations.slice(0, 20); // Limit results
   }
 
   // Remove all mock/fallback methods - REAL DATA ONLY
