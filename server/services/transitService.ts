@@ -879,23 +879,12 @@ export class TransitService {
             }
           });
           
-          // CRITICAL FIX: For SL API, convert the Stockholm time BACK to Stockholm local time
-          // The dateTime from routes.ts is in UTC, we need Stockholm local time for SL API
-          const stockholmLocalTime = new Intl.DateTimeFormat('sv-SE', {
-            timeZone: 'Europe/Stockholm',
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
-          }).formatToParts(dateTime);
+          // SIMPLE TIME FIX: Use the Stockholm local time directly - no conversion needed
+          const slDate = `${dateTime.getFullYear()}-${String(dateTime.getMonth() + 1).padStart(2, '0')}-${String(dateTime.getDate()).padStart(2, '0')}`;
+          const slTime = `${String(dateTime.getHours()).padStart(2, '0')}:${String(dateTime.getMinutes()).padStart(2, '0')}`;
           
-          const slDate = `${stockholmLocalTime.find(p => p.type === 'year')?.value}-${stockholmLocalTime.find(p => p.type === 'month')?.value}-${stockholmLocalTime.find(p => p.type === 'day')?.value}`;
-          const slTime = `${stockholmLocalTime.find(p => p.type === 'hour')?.value}:${stockholmLocalTime.find(p => p.type === 'minute')?.value}`;
-          
-          console.log(`SL API TIME FIX: Input UTC: ${dateTime.toISOString()}`);
-          console.log(`SL API TIME FIX: Stockholm local: ${slDate} ${slTime}`);
+          console.log(`DIRECT TIME: User wants ${slDate} ${slTime} Stockholm time`);
+          console.log(`NO CONVERSION: Sending exactly ${slDate} ${slTime} to SL API`);
           
           queryParams.append('date', slDate);
           queryParams.append('time', slTime);
@@ -1079,18 +1068,32 @@ export class TransitService {
     };
   }
 
-  // Clean up SL station names (remove city prefix, etc.)
+  // Clean up SL station names and make them user-friendly
   cleanSLStationName(fullName: string | undefined): string | undefined {
     if (!fullName) return undefined;
     
-    // SL names often come as "City, Station" - extract just the station name
-    // Examples: "Sundbyberg, Sundbyberg" -> "Sundbyberg", "Stockholm, T-Centralen" -> "T-Centralen"
+    // Handle "City, Station" format - extract just the station name
     const parts = fullName.split(', ');
-    if (parts.length >= 2) {
-      return parts[1]; // Take the station part
+    let stationName = parts.length >= 2 ? parts[1] : fullName;
+    
+    // Fix specific confusing station names
+    if (stationName === 'Stockholm City' || stationName.includes('Stockholm')) {
+      return 'Stockholm Central Station';
+    }
+    if (stationName === 'T-Centralen') {
+      return 'T-Centralen (Metro Hub)';
+    }
+    if (stationName === 'Odenplan') {
+      return 'Odenplan (Transit Hub)';
+    }
+    if (stationName === 'Flemingsberg') {
+      return 'Flemingsberg Station';
+    }
+    if (stationName === 'Sundbyberg') {
+      return 'Sundbyberg Station';
     }
     
-    return fullName; // If no comma, return as-is
+    return stationName;
   }
 
   // Dynamic routing strategy using real SL data - no hardcoded values

@@ -79,9 +79,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/trips/search', isAuthenticated, async (req: any, res) => {
     try {
       const data = journeyPlannerSchema.parse(req.body);
-      // CRITICAL FIX: Create dateTime in Stockholm timezone, not browser timezone
-      // When user selects 11:30 AM, we want exactly 11:30 AM Stockholm time
-      const stockholmDateTime = new Date(`${data.date}T${data.time}:00+02:00`); // Stockholm is UTC+2 in summer
+      // ABSOLUTE FIX: Create Stockholm local time WITHOUT timezone conversion
+      // Parse user input as Stockholm local time directly - NO UTC conversion
+      const [year, month, day] = data.date.split('-').map(Number);
+      const [hour, minute] = data.time.split(':').map(Number);
+      
+      // Create date in Stockholm timezone using proper constructor
+      const stockholmDateTime = new Date();
+      stockholmDateTime.setFullYear(year, month - 1, day); // month is 0-indexed
+      stockholmDateTime.setHours(hour, minute, 0, 0);
       
       console.log(`Journey search request: ${data.from} → ${data.to}`);
       console.log(`Raw input: ${data.date}T${data.time}`);
