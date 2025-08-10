@@ -159,12 +159,13 @@ export default function JourneyPlannerForm() {
                           ref={fromInputRef}
                           placeholder="Stockholm Odenplan"
                           className="pl-8 pr-10"
-                          value={typeof field.value === 'object' ? field.value.name : field.value}
+                          value={fromQuery}
                           onChange={(e) => {
-                            // Clear the field when user types (until they select from dropdown)
+                            const value = e.target.value;
+                            setFromQuery(value);
+                            setShowFromDropdown(value.length >= 2);
+                            // Clear form value when typing to require dropdown selection
                             field.onChange('');
-                            setFromQuery(e.target.value);
-                            setShowFromDropdown(e.target.value.length >= 2);
                           }}
                           onFocus={() => {
                             if (fromQuery.length >= 2) {
@@ -233,12 +234,13 @@ export default function JourneyPlannerForm() {
                           ref={toInputRef}
                           placeholder="Arlanda Airport"
                           className="pl-8 pr-10"
-                          value={typeof field.value === 'object' ? field.value.name : field.value}
+                          value={toQuery}
                           onChange={(e) => {
-                            // Clear the field when user types (until they select from dropdown)
+                            const value = e.target.value;
+                            setToQuery(value);
+                            setShowToDropdown(value.length >= 2);
+                            // Clear form value when typing to require dropdown selection
                             field.onChange('');
-                            setToQuery(e.target.value);
-                            setShowToDropdown(e.target.value.length >= 2);
                           }}
                           onFocus={() => {
                             if (toQuery.length >= 2) {
