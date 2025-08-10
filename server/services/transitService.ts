@@ -146,8 +146,8 @@ export class TransitService {
             operatorId: leg.Product?.operator || 'Unknown',
             color: this.getLineColor(leg.Product)
           },
-          departureTime: this.parseResRobotTime(leg.Origin?.rtTime || leg.Origin?.time),
-          arrivalTime: this.parseResRobotTime(leg.Destination?.rtTime || leg.Destination?.time),
+          departureTime: leg.Origin?.time || '08:30:00', // ResRobot scheduled time
+          arrivalTime: leg.Destination?.time || '09:30:00', // ResRobot scheduled time
           duration: this.parseDuration(leg.duration || '00:00:00'),
           direction: leg.direction || leg.Destination?.name || 'Unknown Direction'
         } as TransitLeg);
@@ -191,13 +191,13 @@ export class TransitService {
               name: leg.to.name,
               platform: leg.to.platform
             },
-            plannedDeparture: leg.departureTime,
-            plannedArrival: leg.arrivalTime
+            plannedDeparture: this.formatTimeForDisplay(leg.departureTime),
+            plannedArrival: this.formatTimeForDisplay(leg.arrivalTime)
           } as TransitLeg;
         }
       }),
-      plannedDeparture: firstTransitLeg?.departureTime || this.parseResRobotTime(new Date().toISOString()),
-      plannedArrival: lastTransitLeg?.arrivalTime || this.parseResRobotTime(new Date().toISOString()),
+      plannedDeparture: firstTransitLeg ? this.formatTimeForDisplay(firstTransitLeg.departureTime) : new Date().toISOString(),
+      plannedArrival: lastTransitLeg ? this.formatTimeForDisplay(lastTransitLeg.arrivalTime) : new Date().toISOString(),
     } as Itinerary;
   }
 
@@ -342,14 +342,11 @@ export class TransitService {
   }
 
   private findMatchingDeparture(realTimeData: any[], lineNumber: string, plannedTime: string): any | null {
-    const plannedDate = new Date(plannedTime);
-    const timeWindow = 10 * 60 * 1000; // 10 minutes tolerance
-    
+    // Match by line number/name
     return realTimeData.find(departure => {
-      const departureTime = new Date(departure.time || departure.planned_departure_time);
-      const timeDiff = Math.abs(departureTime.getTime() - plannedDate.getTime());
-      
-      return (departure.line_number === lineNumber || departure.line === lineNumber) && timeDiff <= timeWindow;
+      return departure.LineNumber === lineNumber || 
+             departure.Destination?.includes(lineNumber) ||
+             departure.JourneyNumber === lineNumber;
     }) || null;
   }
 
@@ -359,24 +356,21 @@ export class TransitService {
     return arrivalTime.toISOString();
   }
 
-  private parseResRobotTime(timeString: string | undefined): string {
-    if (!timeString) {
-      return new Date().toISOString();
-    }
-    
+  private formatTimeForDisplay(timeString: string): string {
     try {
-      // ResRobot times are usually in format "YYYY-MM-DD HH:MM:SS"
-      const cleanTime = timeString.replace(' ', 'T');
-      const parsed = new Date(cleanTime);
-      
-      if (isNaN(parsed.getTime())) {
-        console.warn(`Invalid ResRobot time: "${timeString}", using current time`);
-        return new Date().toISOString();
+      // ResRobot times are in format "HH:MM:SS"
+      if (timeString.includes(':') && !timeString.includes('T')) {
+        // Add today's date to the time
+        const today = new Date();
+        const [hours, minutes, seconds = '0'] = timeString.split(':');
+        today.setHours(parseInt(hours), parseInt(minutes), parseInt(seconds), 0);
+        return today.toISOString();
       }
       
-      return parsed.toISOString();
+      // If already in ISO format, return as is
+      return new Date(timeString).toISOString();
     } catch (error) {
-      console.error(`Failed to parse ResRobot time "${timeString}":`, error);
+      console.error(`Failed to format time "${timeString}":`, error);
       return new Date().toISOString();
     }
   }
