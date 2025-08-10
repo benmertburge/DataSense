@@ -120,7 +120,10 @@ export class TransitService {
       { id: "9209", name: "Åkeshov", lat: "59.3575", lon: "17.9239", type: "METROSTN" },
       
       // Railway stations (Pendeltåg/Commuter trains)
-      { id: "9005", name: "Stockholm Central", lat: "59.3303", lon: "18.0591", type: "RAILWSTN" },
+      { id: "9005", name: "Stockholm Central (Main Train Station)", lat: "59.3303", lon: "18.0591", type: "RAILWSTN" },
+      { id: "9006", name: "Stockholm City (Commuter Rail Platform)", lat: "59.3312", lon: "18.0594", type: "RAILWSTN" },
+      { id: "9007", name: "Stockholm Odenplan (Blue/Green Line Hub)", lat: "59.3428", lon: "18.0484", type: "RAILWSTN" },
+      { id: "9008", name: "Stockholm Södra (South Station)", lat: "59.3111", lon: "18.0758", type: "RAILWSTN" },
       { id: "9180", name: "Flemingsberg", lat: "59.2175", lon: "17.9447", type: "RAILWSTN" },
       { id: "9200", name: "Tumba", lat: "59.1994", lon: "17.8344", type: "RAILWSTN" },
       { id: "9201", name: "Huddinge", lat: "59.2364", lon: "17.9856", type: "RAILWSTN" },
@@ -873,13 +876,15 @@ export class TransitService {
             }
           });
           
-          // FIXED: Use correct SL API datetime parameters - debugging format
-          const slDate = dateTime.toISOString().split('T')[0]; // YYYY-MM-DD
-          const slTime = dateTime.toTimeString().substring(0, 5); // HH:MM
+          // CRITICAL FIX: The issue is timezone! SL API needs LOCAL Stockholm time
+          // User selects 20:31 (8:31 PM) but toISOString() converts to UTC
+          const stockholmTime = new Date(dateTime.getTime() + (dateTime.getTimezoneOffset() * 60000) + (2 * 3600000)); // CET+1
+          const slDate = stockholmTime.toISOString().split('T')[0]; // YYYY-MM-DD  
+          const slTime = stockholmTime.toISOString().split('T')[1].substring(0, 5); // HH:MM
           
-          console.log(`DEBUG: Original dateTime: ${dateTime.toISOString()}`);
-          console.log(`DEBUG: Local time string: ${dateTime.toString()}`);
-          console.log(`DEBUG: Extracted date: ${slDate}, time: ${slTime}`);
+          console.log(`DEBUG: User input dateTime: ${dateTime.toString()}`);
+          console.log(`DEBUG: Stockholm local time: ${stockholmTime.toISOString()}`);
+          console.log(`DEBUG: SL API date: ${slDate}, time: ${slTime}`);
           
           queryParams.append('date', slDate);
           queryParams.append('time', slTime);
