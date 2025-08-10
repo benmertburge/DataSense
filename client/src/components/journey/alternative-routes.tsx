@@ -121,10 +121,11 @@ export default function AlternativeRoutes() {
                 <div key={legIndex} className="flex items-center justify-between border-l-4 pl-3" style={{ borderColor: leg.line.color || '#666666' }}>
                   <div className="flex items-center space-x-3">
                     <div 
-                      className="w-8 h-8 rounded text-white text-xs font-bold flex items-center justify-center"
+                      className="w-8 h-8 rounded text-xs font-bold flex items-center justify-center"
                       style={{ 
                         backgroundColor: leg.line.color || '#666666',
-                        color: 'white' 
+                        color: 'white !important',
+                        border: 'none'
                       }}
                     >
                       {leg.line.number}
