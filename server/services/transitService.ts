@@ -96,35 +96,10 @@ export class TransitService {
 
     console.log(`ResRobot returned ${data.Trip.length} real trips`);
     
-    // Filter trips based on user's date/time criteria
-    const userDateTime = new Date(`${searchDate}T${searchTime}:00`);
-    const filteredTrips = data.Trip.filter((trip: any) => {
-      if (!trip.LegList?.Leg) return false;
-      
-      // Get first transit leg to check departure time
-      const legs = Array.isArray(trip.LegList.Leg) ? trip.LegList.Leg : [trip.LegList.Leg];
-      const firstTransitLeg = legs.find(leg => leg.type !== 'WALK');
-      
-      if (!firstTransitLeg?.Origin?.date || !firstTransitLeg?.Origin?.time) return false;
-      
-      // Parse ResRobot departure time: Origin.date (YYYY-MM-DD) + Origin.time (HH:MM)
-      const tripDateTime = new Date(`${firstTransitLeg.Origin.date}T${firstTransitLeg.Origin.time}:00`);
-      
-      if (leaveAt) {
-        // For "Leave at", include trips departing after the user's time
-        return tripDateTime >= userDateTime;
-      } else {
-        // For "Arrive by", include trips arriving before the user's time
-        const lastTransitLeg = legs.filter(leg => leg.type !== 'WALK').pop();
-        if (!lastTransitLeg?.Destination?.date || !lastTransitLeg?.Destination?.time) return false;
-        const arrivalDateTime = new Date(`${lastTransitLeg.Destination.date}T${lastTransitLeg.Destination.time}:00`);
-        return arrivalDateTime <= userDateTime;
-      }
-    });
+    // ResRobot already filters by time, so just return all trips
+    console.log(`ResRobot API already filtered trips by time parameters`);
     
-    console.log(`FILTERED: ${filteredTrips.length} trips match user criteria (${leaveAt ? 'leave at' : 'arrive by'} ${searchDate} ${searchTime})`);
-    
-    return filteredTrips.map((trip: any, index: number) => this.convertResRobotTripToItinerary(trip, index));
+    return data.Trip.map((trip: any, index: number) => this.convertResRobotTripToItinerary(trip, index));
   }
 
   private convertResRobotTripToItinerary(resRobotTrip: any, index: number): Itinerary {
