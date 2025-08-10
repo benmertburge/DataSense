@@ -202,13 +202,13 @@ export class TransitService {
               name: leg.to.name,
               platform: leg.to.platform
             },
-            plannedDeparture: this.formatTimeForDisplay(leg.departureTime),
-            plannedArrival: this.formatTimeForDisplay(leg.arrivalTime)
+            plannedDeparture: this.formatResRobotDateTime(leg.Origin?.date, leg.Origin?.time),
+            plannedArrival: this.formatResRobotDateTime(leg.Destination?.date, leg.Destination?.time)
           } as TransitLeg;
         }
       }),
-      plannedDeparture: firstTransitLeg ? this.formatTimeForDisplay(firstTransitLeg.departureTime) : new Date().toISOString(),
-      plannedArrival: lastTransitLeg ? this.formatTimeForDisplay(lastTransitLeg.arrivalTime) : new Date().toISOString(),
+      plannedDeparture: firstTransitLeg ? this.formatResRobotDateTime(firstTransitLeg.Origin?.date, firstTransitLeg.Origin?.time) : new Date().toISOString(),
+      plannedArrival: lastTransitLeg ? this.formatResRobotDateTime(lastTransitLeg.Destination?.date, lastTransitLeg.Destination?.time) : new Date().toISOString(),
     } as Itinerary;
   }
 
@@ -384,21 +384,21 @@ export class TransitService {
     return arrivalTime.toISOString();
   }
 
-  private formatTimeForDisplay(timeString: string): string {
+  private formatResRobotDateTime(dateString?: string, timeString?: string): string {
     try {
-      // ResRobot times are in format "HH:MM:SS"
-      if (timeString.includes(':') && !timeString.includes('T')) {
-        // Add today's date to the time
-        const today = new Date();
-        const [hours, minutes, seconds = '0'] = timeString.split(':');
-        today.setHours(parseInt(hours), parseInt(minutes), parseInt(seconds), 0);
-        return today.toISOString();
+      if (!dateString || !timeString) {
+        console.warn(`Missing date or time: date=${dateString}, time=${timeString}`);
+        return new Date().toISOString();
       }
       
-      // If already in ISO format, return as is
-      return new Date(timeString).toISOString();
+      // ResRobot format: date "2025-08-11", time "08:30"
+      const [hours, minutes] = timeString.split(':');
+      const dateTime = new Date(`${dateString}T${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}:00`);
+      
+      console.log(`DEBUG: ResRobot DateTime - Date: ${dateString}, Time: ${timeString} -> ISO: ${dateTime.toISOString()}`);
+      return dateTime.toISOString();
     } catch (error) {
-      console.error(`Failed to format time "${timeString}":`, error);
+      console.error(`Failed to format ResRobot date/time "${dateString}" "${timeString}":`, error);
       return new Date().toISOString();
     }
   }
