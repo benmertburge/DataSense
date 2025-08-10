@@ -62,16 +62,18 @@ export default function JourneyPlannerForm() {
 
   const searchMutation = useMutation({
     mutationFn: async (data: JourneyPlannerRequest & { leaveAt: boolean }) => {
-      // Ensure we're sending station objects with IDs, not strings
-      const searchData = {
-        ...data,
-        from: typeof data.from === 'string' ? { id: data.from, name: data.from } : data.from,
-        to: typeof data.to === 'string' ? { id: data.to, name: data.to } : data.to
-      };
+      // Validate that we have proper station objects with numeric IDs
+      if (typeof data.from === 'string' || typeof data.to === 'string') {
+        throw new Error('Please select stations from the dropdown list');
+      }
       
-      console.log('Submitting search with:', searchData);
+      if (!data.from?.id?.match(/^\d+$/) || !data.to?.id?.match(/^\d+$/)) {
+        throw new Error('Invalid station selection. Please select valid stations from the dropdown.');
+      }
       
-      const response = await apiRequest('POST', '/api/trips/search', searchData);
+      console.log('Submitting search with valid station IDs:', data);
+      
+      const response = await apiRequest('POST', '/api/trips/search', data);
       return response.json();
     },
     onSuccess: (data) => {
@@ -159,7 +161,8 @@ export default function JourneyPlannerForm() {
                           className="pl-8 pr-10"
                           value={typeof field.value === 'object' ? field.value.name : field.value}
                           onChange={(e) => {
-                            field.onChange(e.target.value);
+                            // Clear the field when user types (until they select from dropdown)
+                            field.onChange('');
                             setFromQuery(e.target.value);
                             setShowFromDropdown(e.target.value.length >= 2);
                           }}
@@ -232,7 +235,8 @@ export default function JourneyPlannerForm() {
                           className="pl-8 pr-10"
                           value={typeof field.value === 'object' ? field.value.name : field.value}
                           onChange={(e) => {
-                            field.onChange(e.target.value);
+                            // Clear the field when user types (until they select from dropdown)
+                            field.onChange('');
                             setToQuery(e.target.value);
                             setShowToDropdown(e.target.value.length >= 2);
                           }}
