@@ -1,4 +1,7 @@
 import { storage } from "../storage";
+import { db } from "../db";
+import { stopAreas } from "@shared/schema";
+import { eq, ilike, sql } from "drizzle-orm";
 import type { Itinerary, Departure, Line, StopArea, Leg, TransitLeg, WalkLeg } from "@shared/schema";
 
 // SL API integration
@@ -34,6 +37,7 @@ export class TransitService {
   private cachedSites: StopArea[] = [];
   private cacheExpiry: number = 0;
   private readonly CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
+  private isInitialized: boolean = false;
 
   private mockLines: Line[] = [
     { id: "L1", number: "10", mode: "METRO", name: "Blue Line", operatorId: "SL" },
@@ -102,42 +106,111 @@ export class TransitService {
     return "METROSTN";
   }
 
-  private async ensureSitesLoaded(): Promise<void> {
-    const now = Date.now();
-    if (this.cachedSites.length === 0 || now > this.cacheExpiry) {
-      this.cachedSites = await this.fetchSLSites();
-      this.cacheExpiry = now + this.CACHE_DURATION;
-      console.log(`Loaded ${this.cachedSites.length} SL stations`);
+  private async initializeDatabase(): Promise<void> {
+    if (this.isInitialized) return;
+
+    try {
+      // Check if we have stations in database
+      const count = await db.$count(stopAreas);
+      console.log(`Found ${count} stations in database`);
+
+      if (count < 50) { // If we have fewer than 50 stations, sync from SL API
+        console.log("Syncing stations from SL API to database...");
+        await this.syncStationsToDatabase();
+      }
+
+      this.isInitialized = true;
+    } catch (error) {
+      console.error("Error initializing database:", error);
+      this.isInitialized = true; // Mark as initialized to avoid infinite loops
+    }
+  }
+
+  private async syncStationsToDatabase(): Promise<void> {
+    try {
+      const response = await fetch(`${this.SL_API_BASE}/sites`);
+      if (!response.ok) {
+        console.error("Failed to fetch from SL API");
+        return;
+      }
+
+      const sites: SLSite[] = await response.json();
+      console.log(`Fetched ${sites.length} stations from SL API`);
+
+      // Insert stations in batches
+      const batchSize = 100;
+      for (let i = 0; i < Math.min(sites.length, 1000); i += batchSize) {
+        const batch = sites.slice(i, i + batchSize);
+        const stationData = batch.map(site => ({
+          id: site.id.toString(),
+          name: site.name,
+          lat: site.lat.toString(),
+          lon: site.lon.toString(),
+          type: this.determineStationType(site.name)
+        }));
+
+        await db.insert(stopAreas).values(stationData).onConflictDoUpdate({
+          target: stopAreas.id,
+          set: {
+            name: sql`excluded.name`,
+            lat: sql`excluded.lat`,
+            lon: sql`excluded.lon`,
+            type: sql`excluded.type`,
+          },
+        });
+      }
+
+      console.log("Successfully synced stations to database");
+    } catch (error) {
+      console.error("Error syncing stations:", error);
     }
   }
 
   async searchSites(query: string): Promise<StopArea[]> {
-    await this.ensureSitesLoaded();
+    await this.initializeDatabase();
     
-    return this.cachedSites
-      .filter((area) =>
-        area.name.toLowerCase().includes(query.toLowerCase())
-      )
-      .slice(0, 10);
+    try {
+      const results = await db
+        .select()
+        .from(stopAreas)
+        .where(ilike(stopAreas.name, `%${query}%`))
+        .limit(10);
+      
+      console.log(`Found ${results.length} stations matching "${query}"`);
+      return results;
+    } catch (error) {
+      console.error("Error searching stations:", error);
+      return this.getFallbackStations().filter(station => 
+        station.name.toLowerCase().includes(query.toLowerCase())
+      ).slice(0, 10);
+    }
   }
 
   async searchRoutes(from: string, to: string, via?: string, dateTime?: Date): Promise<{
     best: Itinerary;
     alternatives: Itinerary[];
   }> {
-    await this.ensureSitesLoaded();
+    await this.initializeDatabase();
     
-    // Find stop areas from real SL data
-    const fromArea = this.cachedSites.find(area => 
-      area.name.toLowerCase().includes(from.toLowerCase()) || area.id === from
-    );
-    const toArea = this.cachedSites.find(area => 
-      area.name.toLowerCase().includes(to.toLowerCase()) || area.id === to
-    );
+    // Find stop areas from database
+    const [fromArea] = await db
+      .select()
+      .from(stopAreas)
+      .where(ilike(stopAreas.name, `%${from}%`))
+      .limit(1);
+      
+    const [toArea] = await db
+      .select()
+      .from(stopAreas)
+      .where(ilike(stopAreas.name, `%${to}%`))
+      .limit(1);
 
     if (!fromArea || !toArea) {
+      console.error(`Route search failed - from: "${from}", to: "${to}"`);
       throw new Error("Stop areas not found");
     }
+
+    console.log(`Route planning: ${fromArea.name} → ${toArea.name}`);
 
     const baseTime = dateTime || new Date();
     
