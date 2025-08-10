@@ -131,12 +131,12 @@ export default function AlternativeRoutes() {
               </div>
             </div>
             
-            <div className="space-y-2 text-sm">
+            <div className="flex items-center space-x-2 text-sm">
               {route.legs.filter((leg: any) => leg.kind === 'TRANSIT').map((leg: any, legIndex: number, transitLegs: any[]) => (
-                <div key={legIndex} className="flex items-center justify-between border-l-4 pl-3" style={{ borderColor: leg.line.color || '#666666' }}>
-                  <div className="flex items-center space-x-3">
+                <div key={legIndex} className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2">
                     <div 
-                      className="w-8 h-8 rounded text-white text-xs font-bold flex items-center justify-center"
+                      className="w-6 h-6 rounded text-white text-xs font-bold flex items-center justify-center"
                       style={{ backgroundColor: leg.line.color || '#666666' }}
                     >
                       {leg.line.number}
@@ -146,19 +146,11 @@ export default function AlternativeRoutes() {
                       <span className="text-xs text-gray-500">
                         {leg.from?.name || 'Unknown'} → {leg.to?.name || 'Unknown'}
                       </span>
-                      {(leg.from?.platform || leg.to?.platform) && (
-                        <span className="text-xs text-blue-600">
-                          {leg.from?.platform && `Platform ${leg.from.platform}`}
-                          {leg.from?.platform && leg.to?.platform && ' → '}
-                          {leg.to?.platform && `Platform ${leg.to.platform}`}
-                        </span>
-                      )}
                     </div>
                   </div>
-                  <div className="text-right text-xs">
-                    <div className="font-medium">{formatTime(leg.plannedDeparture)} - {formatTime(leg.plannedArrival)}</div>
-                    <div className="text-gray-500">{getTotalDuration(leg.plannedDeparture, leg.plannedArrival)}</div>
-                  </div>
+                  {legIndex < transitLegs.length - 1 && (
+                    <ArrowRight className="h-3 w-3 text-gray-400" />
+                  )}
                 </div>
               ))}
             </div>
