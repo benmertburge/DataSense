@@ -1,0 +1,33 @@
+Trafiklab API returned 87 total departures
+Trafiklab Realtime API returned 10 real departures with live data
+Slussen T-bana (Stockholm kn) connection analysis: 8 lines, 2 modes, score: 10
+Dynamic hub analysis for Sundbybergs station → Flemingsbergs station:
+Slussen T-bana (Stockholm kn): score 10.61 (walk: 20.5km, crowded: 6, connections: 10)
+T-Centralen T-bana (Stockholm kn): score 10.97 (walk: 19.9km, crowded: 6, connections: 7)
+Stockholm Odenplan station: score 11.32 (walk: 19.8km, crowded: 6, connections: 5)
+Stockholm södra station: score 11.34 (walk: 19.9km, crowded: 6, connections: 5)
+Spånga station (Stockholm kn): score 11.71 (walk: 23.3km, crowded: 6, connections: 10)
+Selected optimal hub: Slussen T-bana (Stockholm kn)
+Routing reasoning: Optimal route via Slussen T-bana (Stockholm kn): walking 20.5km total, crowdedness level 6/10
+Trying SL search strategy 1: direct (leasttime)
+SL Journey Planner: Getting route structure (no time constraints)
+SL strategy 1 failed: ReferenceError: slDate is not defined
+    at TransitService.searchRoutesWithSL (/home/runner/workspace/server/services/transitService.ts:897:73)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:98:22)
+Trying SL search strategy 2: via hub (leasttime)
+SL Journey Planner: Getting route structure (no time constraints)
+SL strategy 2 failed: ReferenceError: slDate is not defined
+    at TransitService.searchRoutesWithSL (/home/runner/workspace/server/services/transitService.ts:897:73)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:98:22)
+SL Journey Planner failed - NO FALLBACK: Error: No journeys found with SL Journey Planner
+    at TransitService.searchRoutesWithSL (/home/runner/workspace/server/services/transitService.ts:945:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:98:22)
+Error searching trips: Error: SL routing unavailable - please try again later
+    at TransitService.searchRoutesWithSL (/home/runner/workspace/server/services/transitService.ts:971:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:98:22)
+4:47:59 PM [express] POST /api/trips/search 400 in 1353ms :: {"message":"SL routing unavailable - pl…
+4:48:03 PM [express] GET /api/journeys/active 304 in 107ms

@@ -880,13 +880,16 @@ export class TransitService {
             }
           });
           
-          // SL Journey Planner: Get route structure without time constraints
-          // Don't send specific time - just get the route options
-          console.log(`SL Journey Planner: Getting route structure (no time constraints)`);
+          // Format date and time for SL Journey Planner API
+          const slDate = dateTime.toISOString().split('T')[0]; // YYYY-MM-DD
+          const slTime = `${dateTime.getHours().toString().padStart(2, '0')}:${dateTime.getMinutes().toString().padStart(2, '0')}`; // HH:MM
           
-          // Remove time-based parameters for route planning
-          // queryParams.append('date', slDate);
-          // queryParams.append('time', slTime);
+          // SL Journey Planner: Get route structure with time constraints
+          console.log(`SL Journey Planner: Getting route structure for ${slDate} ${slTime}`);
+          
+          // Add time-based parameters for route planning
+          queryParams.append('date', slDate);
+          queryParams.append('time', slTime);
           
           if (searchType === 'arrival') {
             queryParams.append('searchForArrival', '1');
