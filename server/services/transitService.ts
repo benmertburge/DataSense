@@ -33,8 +33,8 @@ interface SLDeparture {
 }
 
 export class TransitService {
+  private readonly RESROBOT_API = "https://api.resrobot.se/v2.1";
   private readonly SL_TRANSPORT_API = "https://transport.integration.sl.se/v1";
-  private readonly TRAFIKLAB_TYPEAHEAD_API = "https://journeyplanner.integration.sl.se/v1";
   private cachedSites: StopArea[] = [];
   private cacheExpiry: number = 0;
   private readonly CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
@@ -183,14 +183,9 @@ export class TransitService {
 
   private async syncStationsToDatabase(): Promise<void> {
     try {
-      // Try Trafiklab API first if we have the key
-      if (process.env.TRAFIKLAB_API_KEY) {
-        console.log("Using Trafiklab API for station data...");
-        await this.syncFromTrafiklab();
-      } else {
-        console.log("Using SL Transport API for station data...");
-        await this.syncFromSLTransport();
-      }
+      // Use SL Transport API for comprehensive Stockholm data (6000+ stations)
+      console.log("Using SL Transport API for comprehensive Stockholm station data...");
+      await this.syncFromSLTransport();
     } catch (error) {
       console.error("Error syncing stations:", error);
       // Insert fallback stations as a last resort
@@ -199,46 +194,63 @@ export class TransitService {
   }
 
   private async syncFromTrafiklab(): Promise<void> {
-    console.log("Loading Stockholm stations using the updated Trafiklab API...");
+    console.log("Loading comprehensive Swedish transport data from ResRobot 2.1...");
     
     const allStations = new Map<string, any>();
     
-    // Method 1: Use the correct Trafiklab typeahead endpoint
+    // Method 1: Use ResRobot to get comprehensive Swedish transport data
     try {
-      const response1 = await fetch(`${this.TRAFIKLAB_TYPEAHEAD_API}/typeahead.json?key=${process.env.TRAFIKLAB_API_KEY}&searchstring=&stationsonly=true&maxresults=1000`);
-      if (response1.ok) {
-        const data1 = await response1.json();
-        const sites1 = data1.ResponseData || [];
-        sites1.forEach((site: any) => {
-          if (site.SiteId) {
-            // Convert SiteId from format like 300109001 to 9001
-            const convertedId = site.SiteId.toString().slice(3);
-            allStations.set(convertedId, { ...site, SiteId: convertedId });
+      // Search for major Swedish cities/regions to get comprehensive coverage
+      const searchTerms = ['Stockholm', 'Göteborg', 'Malmö', 'Uppsala', 'Linköping', 'Örebro', 'Västerås', 'Norrköping', 'Helsingborg', 'Jönköping'];
+      
+      for (const term of searchTerms) {
+        try {
+          const response = await fetch(`${this.RESROBOT_API}/location.name?input=${encodeURIComponent(term)}?&format=json&maxNo=1000&type=S&accessId=${process.env.TRAFIKLAB_API_KEY}`);
+          if (response.ok) {
+            const data = await response.json();
+            const stops = data.StopLocation || [];
+            stops.forEach((stop: any) => {
+              if (stop.id && stop.name) {
+                allStations.set(stop.id, {
+                  id: stop.id,
+                  name: stop.name,
+                  lat: stop.lat,
+                  lon: stop.lon,
+                  weight: stop.weight || 0
+                });
+              }
+            });
           }
-        });
-        console.log(`Trafiklab typeahead: Found ${sites1.length} stations`);
+          // Rate limiting
+          await new Promise(resolve => setTimeout(resolve, 200));
+        } catch (e) {
+          console.log(`ResRobot search for "${term}" failed, continuing...`);
+        }
       }
+      
+      console.log(`ResRobot API: Found ${allStations.size} unique stations from searches`);
     } catch (e) {
-      console.log("Trafiklab typeahead failed, continuing...");
+      console.log("ResRobot API failed, continuing...");
     }
 
-    // Method 2: Use the SL Transport API (no key needed) - this gives us ALL stations
+    // Method 2: Supplement with SL Transport API for Stockholm area details
     try {
-      console.log("Fetching from SL Transport API...");
+      console.log("Supplementing with SL Transport API for Stockholm details...");
       const response2 = await fetch(`${this.SL_TRANSPORT_API}/sites`);
       if (response2.ok) {
         const sites: SLSite[] = await response2.json();
         sites.forEach((site: SLSite) => {
           if (site.id && site.name) {
-            allStations.set(site.id.toString(), {
-              SiteId: site.id,
-              Name: site.name,
-              X: site.lon,
-              Y: site.lat
+            allStations.set(`sl_${site.id}`, {
+              id: `sl_${site.id}`,
+              name: site.name,
+              lat: site.lat,
+              lon: site.lon,
+              weight: 1000 // Give SL stations good weight
             });
           }
         });
-        console.log(`SL Transport API: Found ${sites.length} stations`);
+        console.log(`SL Transport API: Added ${sites.length} Stockholm area stations`);
       }
     } catch (e) {
       console.log("SL Transport API failed, continuing...");
@@ -258,13 +270,13 @@ export class TransitService {
     for (let i = 0; i < totalStations.length; i += batchSize) {
       const batch = totalStations.slice(i, i + batchSize);
       const stationData = batch
-        .filter((site: any) => site.SiteId && site.Name && site.X && site.Y)
+        .filter((site: any) => site.id && site.name && site.lat && site.lon)
         .map((site: any) => ({
-          id: site.SiteId.toString(),
-          name: site.Name,
-          lat: site.Y.toString(),
-          lon: site.X.toString(),
-          type: this.determineStationType(site.Name)
+          id: site.id.toString(),
+          name: site.name,
+          lat: site.lat.toString(),
+          lon: site.lon.toString(),
+          type: this.determineStationType(site.name)
         }));
 
       if (stationData.length > 0) {
@@ -281,7 +293,7 @@ export class TransitService {
       }
     }
 
-    console.log(`Successfully synced ${insertedCount} stations to database`);
+    console.log(`Successfully synced ${insertedCount} stations from ResRobot + SL to database`);
   }
 
   private async syncFromSLTransport(): Promise<void> {
