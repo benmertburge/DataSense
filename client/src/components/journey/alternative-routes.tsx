@@ -8,22 +8,18 @@ export default function AlternativeRoutes() {
   const { data: tripResults } = useQuery({
     queryKey: ['trip-results'],
     enabled: true, // Enable to show cached search results
-  }) as { data: { best?: any; alternatives?: any[] } | undefined };
+  }) as { data: any[] | undefined };
 
-  // Show both the best route and alternatives
-  if (!tripResults?.best && (!tripResults?.alternatives || tripResults.alternatives.length === 0)) {
+  // Check if we have an array of routes from the API
+  if (!tripResults || !Array.isArray(tripResults) || tripResults.length === 0) {
     return null;
   }
 
-  const allRoutes = [];
-  if (tripResults.best) {
-    allRoutes.push({ ...tripResults.best, label: 'Best Route' });
-  }
-  if (tripResults.alternatives) {
-    tripResults.alternatives.forEach((alt, index) => {
-      allRoutes.push({ ...alt, label: `Alternative ${index + 1}` });
-    });
-  }
+  // API returns an array of itineraries directly
+  const allRoutes = tripResults.map((route, index) => ({
+    ...route,
+    label: index === 0 ? 'Best Route' : `Alternative ${index}`
+  }));
 
   const formatTime = (dateString: string) => {
     return new Date(dateString).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
@@ -56,10 +52,7 @@ export default function AlternativeRoutes() {
     if (transitLegs.length === 1) {
       return 'Direct';
     }
-    if (transitLegs.every(leg => new Date(leg.expectedArrival || leg.plannedArrival) <= new Date(leg.plannedArrival))) {
-      return 'Faster';
-    }
-    return 'Alternative';
+    return 'With transfer';
   };
 
   const getRouteStatus = (legs: any[]) => {
@@ -69,7 +62,7 @@ export default function AlternativeRoutes() {
       new Date(leg.expectedDeparture) > new Date(leg.plannedDeparture)
     );
     
-    return hasDelays ? 'On time' : 'On time';
+    return hasDelays ? 'Delayed' : 'On time';
   };
 
   return (
@@ -77,27 +70,27 @@ export default function AlternativeRoutes() {
       <CardHeader className="border-b border-gray-200">
         <CardTitle className="flex items-center">
           <ArrowRight className="text-blue-600 mr-2" />
-          Journey Options
+          Journey Options ({allRoutes.length} found)
         </CardTitle>
       </CardHeader>
       <CardContent className="p-6 space-y-4">
         {allRoutes.map((route: any, index: number) => (
           <div 
-            key={index}
+            key={route.id || index}
             className="border border-gray-200 rounded-lg p-4 hover:border-blue-600 cursor-pointer transition-colors"
           >
             <div className="flex justify-between items-start mb-3">
               <div className="flex items-center space-x-2">
-                <Badge variant="secondary" className="bg-green-100 text-green-800">
-                  {getRouteLabel(route.legs)}
+                <Badge variant="secondary" className={index === 0 ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-800"}>
+                  {route.label}
                 </Badge>
                 <span className="text-sm font-medium">
-                  {getTotalDuration(route.plannedDeparture, route.expectedArrival || route.plannedArrival)} total
+                  {getTotalDuration(route.plannedDeparture, route.plannedArrival)} total
                 </span>
               </div>
               <div className="text-right">
                 <p className="text-sm font-medium">
-                  {formatTime(route.plannedDeparture)} - {formatTime(route.expectedArrival || route.plannedArrival)}
+                  {formatTime(route.plannedDeparture)} - {formatTime(route.plannedArrival)}
                 </p>
                 <p className="text-xs text-green-600">{getRouteStatus(route.legs)}</p>
               </div>
@@ -116,7 +109,7 @@ export default function AlternativeRoutes() {
                     <div className="flex flex-col">
                       <span className="text-sm font-medium">{leg.line.name}</span>
                       <span className="text-xs text-gray-500">
-                        {leg.from?.name || 'Unknown'} (Platform {leg.from?.platform || '?'}) → {leg.to?.name || 'Unknown'} (Platform {leg.to?.platform || '?'})
+                        {leg.origin?.name || 'Unknown'} → {leg.destination?.name || 'Unknown'}
                       </span>
                     </div>
                   </div>
@@ -127,66 +120,14 @@ export default function AlternativeRoutes() {
               ))}
             </div>
 
-            {/* Delay information */}
-            {route.delayMinutes > 0 && (
-              <div className="mt-2">
-                <Badge variant="destructive" className="bg-amber-100 text-amber-800">
-                  +{route.delayMinutes} min delay
-                </Badge>
+            {/* Show walking legs */}
+            {route.legs.some((leg: any) => leg.kind === 'WALK') && (
+              <div className="mt-2 text-xs text-gray-500">
+                Includes walking segments
               </div>
             )}
           </div>
         ))}
-        
-        {/* Show main route option */}
-        {tripResults.best && (
-          <div className="border-2 border-blue-600 rounded-lg p-4 bg-blue-50">
-            <div className="flex justify-between items-start mb-3">
-              <div className="flex items-center space-x-2">
-                <Badge className="bg-blue-600">
-                  Recommended
-                </Badge>
-                <span className="text-sm font-medium">
-                  {getTotalDuration(tripResults.best.plannedDeparture, tripResults.best.expectedArrival || tripResults.best.plannedArrival)} total
-                </span>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-medium">
-                  {formatTime(tripResults.best.plannedDeparture)} - {formatTime(tripResults.best.expectedArrival || tripResults.best.plannedArrival)}
-                </p>
-                {tripResults.best.delayMinutes > 0 ? (
-                  <p className="text-xs text-amber-600">+{tripResults.best.delayMinutes} min delay</p>
-                ) : (
-                  <p className="text-xs text-green-600">On time</p>
-                )}
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-2 text-sm">
-              {tripResults.best.legs.filter((leg: any) => leg.kind === 'TRANSIT').map((leg: any, legIndex: number, transitLegs: any[]) => (
-                <div key={legIndex} className="flex items-center space-x-2">
-                  <div className="flex items-center space-x-2">
-                    <div 
-                      className="w-6 h-6 rounded text-white text-xs font-bold flex items-center justify-center"
-                      style={{ backgroundColor: leg.line.color || '#666666' }}
-                    >
-                      {leg.line.number}
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-sm font-medium">{leg.line.name}</span>
-                      <span className="text-xs text-gray-500">
-                        {leg.from?.name || 'Unknown'} (Platform {leg.from?.platform || '?'}) → {leg.to?.name || 'Unknown'} (Platform {leg.to?.platform || '?'})
-                      </span>
-                    </div>
-                  </div>
-                  {legIndex < transitLegs.length - 1 && (
-                    <ArrowRight className="h-3 w-3 text-gray-400" />
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
