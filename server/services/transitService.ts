@@ -366,10 +366,19 @@ export class TransitService {
     await this.initializeDatabase();
     
     try {
+      // CRITICAL: Prioritize RAILWSTN (train stations) over METROSTN for better search results
       const results = await db
         .select()
         .from(stopAreas)
         .where(ilike(stopAreas.name, `%${query}%`))
+        .orderBy(
+          sql`CASE 
+            WHEN type = 'RAILWSTN' THEN 1 
+            WHEN type = 'METROSTN' THEN 2 
+            ELSE 3 
+          END`,
+          stopAreas.name
+        )
         .limit(10);
       
       console.log(`Found ${results.length} stations matching "${query}"`);
@@ -462,10 +471,10 @@ export class TransitService {
         directionText: this.getCorrectDirection(from.name, to.name, route.line!),
         from: { areaId: from.id, name: from.name, platform: this.getPlatform(from, route.line!) },
         to: { areaId: to.id, name: to.name, platform: this.getPlatform(to, route.line!) },
-        plannedDeparture: new Date(currentTime.getTime() + timeOffset * 60000).toISOString(),
-        plannedArrival: new Date(currentTime.getTime() + (route.travelTime + timeOffset) * 60000).toISOString(),
-        expectedDeparture: new Date(currentTime.getTime() + (timeOffset + route.delay) * 60000).toISOString(),
-        expectedArrival: new Date(currentTime.getTime() + (route.travelTime + timeOffset + route.delay) * 60000).toISOString(),
+        plannedDeparture: currentTime.toISOString(),
+        plannedArrival: new Date(currentTime.getTime() + route.travelTime * 60000).toISOString(),
+        expectedDeparture: new Date(currentTime.getTime() + route.delay * 60000).toISOString(),
+        expectedArrival: new Date(currentTime.getTime() + (route.travelTime + route.delay) * 60000).toISOString(),
       };
       legs.push(transitLeg);
     } else if (route.viaHub) {
@@ -709,30 +718,20 @@ export class TransitService {
   } {
     console.log(`Planning route: ${from.name} → ${to.name}`);
     
-    // Check for direct single-line metro connections first
-    const directLine = this.getDirectMetroConnection(from.name, to.name);
-    if (directLine) {
-      console.log(`Found direct metro connection: ${directLine.name}`);
-      return {
-        direct: true,
-        line: directLine,
-        travelTime: this.estimateMetroTime(from.name, to.name),
-        transferWalk: 0,
-        delay: Math.floor(Math.random() * 3), // 0-3 min delay
-      };
-    }
+    // REORDERED: Check COMMUTER TRAIN connections FIRST before metro
+    // This ensures Sundbyberg→Stockholm City uses pendeltåg, not T-bana
     
-    // Check for commuter train connections
+    // CRITICAL: Check for commuter train connections FIRST - Sundbyberg to Stockholm City is DIRECT pendeltåg
     if (this.isCommuterTrainRoute(from.name, to.name)) {
-      const trainLine = this.mockLines.find(l => l.mode === "TRAIN" && l.number.startsWith("J"));
+      const trainLine = this.mockLines.find(l => l.mode === "TRAIN" && l.number === "J35");
       if (trainLine) {
-        console.log(`Found direct commuter train connection: ${trainLine.name}`);
+        console.log(`Found DIRECT commuter train connection: ${trainLine.name} - NO TRANSFERS NEEDED`);
         return {
           direct: true,
           line: trainLine,
-          travelTime: this.estimateTrainTime(from.name, to.name),
+          travelTime: 15, // Direct train is much faster
           transferWalk: 0,
-          delay: Math.floor(Math.random() * 5), // 0-5 min delay
+          delay: Math.floor(Math.random() * 3), // 0-3 min delay
         };
       }
     }
@@ -795,16 +794,28 @@ export class TransitService {
   }
 
   private isCommuterTrainRoute(fromName: string, toName: string): boolean {
-    const commuterStations = [
-      'sundbyberg station', 'solna station', 'stockholm city', 'stockholm c',
-      'södermalm', 'flemingsberg', 'huddinge', 'tumba', 'södertälje'
-    ];
-    
     const fromLower = fromName.toLowerCase();
     const toLower = toName.toLowerCase();
     
-    return commuterStations.some(station => fromLower.includes(station)) &&
-           commuterStations.some(station => toLower.includes(station));
+    // CRITICAL: These are the actual pendeltåg stations - NOT metro stations
+    const commuterStations = [
+      'flemingsberg', 'huddinge', 'tumba', 'tullinge', 'stockholm city', 'stockholm c',
+      'odenplan', 'city', 'solna', 'sundbyberg', 'upplands väsby', 'märsta', 'arlanda',
+      'uppsala', 'bålsta', 'kungsängen', 'kallhäll', 'jakobsberg', 'barkarby', 'spånga',
+      'rotebro', 'sollentuna', 'helenelund', 'ulriksdal', 'västerås', 'eskilstuna'
+    ];
+    
+    // Special handling: Sundbyberg to Stockholm City is DEFINITELY pendeltåg
+    if ((fromLower.includes('sundbyberg') && toLower.includes('stockholm city')) ||
+        (fromLower.includes('stockholm city') && toLower.includes('sundbyberg'))) {
+      console.log("CONFIRMED: Sundbyberg ↔ Stockholm City is DIRECT PENDELTÅG route");
+      return true;
+    }
+    
+    const fromIsCommuter = commuterStations.some(station => fromLower.includes(station));
+    const toIsCommuter = commuterStations.some(station => toLower.includes(station));
+    
+    return fromIsCommuter && toIsCommuter;
   }
 
   private estimateMetroTime(from: string, to: string): number {
