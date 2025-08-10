@@ -86,10 +86,10 @@ export default function AlternativeRoutes() {
   };
 
   return (
-    <Card className="shadow-sm border border-gray-200 mb-6">
-      <CardHeader className="border-b border-gray-200">
-        <CardTitle className="flex items-center">
-          <ArrowRight className="text-blue-600 mr-2" />
+    <Card className="shadow-sm border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 mb-6">
+      <CardHeader className="border-b border-gray-200 dark:border-gray-700">
+        <CardTitle className="flex items-center text-gray-900 dark:text-white">
+          <ArrowRight className="text-blue-600 dark:text-blue-400 mr-2" />
           Journey Options ({allRoutes.length} found)
         </CardTitle>
       </CardHeader>
@@ -97,7 +97,7 @@ export default function AlternativeRoutes() {
         {allRoutes.map((route: any, index: number) => (
           <div 
             key={route.id || index}
-            className="border border-gray-200 rounded-lg p-4 hover:border-blue-600 cursor-pointer transition-colors"
+            className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 hover:border-blue-600 dark:hover:border-blue-400 cursor-pointer transition-colors bg-white dark:bg-gray-750"
           >
             <div className="flex justify-between items-start mb-3">
               <div className="flex items-center space-x-2">
