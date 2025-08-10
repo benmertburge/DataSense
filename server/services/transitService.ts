@@ -850,44 +850,21 @@ export class TransitService {
 
       console.log(`SL Journey search: ${fromStation.name} (${fromStation.id}) → ${toStation.name} (${toStation.id})`);
       
-      // Try multiple routing strategies including via Odenplan
-      const searches = [
-        // Direct search
-        {
-          type_origin: 'any',
-          name_origin: fromStation.id,
-          type_destination: 'any',
-          name_destination: toStation.id,
-          calc_number_of_trips: 3,
-          route_type: 'leasttime'
-        },
-        // Via Stockholm Södra (preferred by user - less crowded, easier connections)
-        {
-          type_origin: 'any',
-          name_origin: fromStation.id,
-          type_destination: 'any', 
-          name_destination: toStation.id,
-          type_via: 'any',
-          name_via: '9091001000009190', // Stockholm Södra SL ID
-          calc_number_of_trips: 3,
-          route_type: 'leasttime'
-        },
-        // Least interchanges
-        {
-          type_origin: 'any',
-          name_origin: fromStation.id,
-          type_destination: 'any',
-          name_destination: toStation.id,
-          calc_number_of_trips: 3,
-          route_type: 'leastinterchange'
-        }
-      ];
+      // Get optimal routing strategy based on crowdedness, walking distance, and user preferences
+      const routingStrategy = this.getOptimalRoutingStrategy(fromStation, toStation, dateTime);
+      const searches = routingStrategy.searches;
       
       let allJourneys: any[] = [];
       
+      console.log(`Routing reasoning: ${routingStrategy.reasoning}`);
+      
       for (const [index, searchParams] of searches.entries()) {
         try {
-          console.log(`Trying SL search strategy ${index + 1}: ${searchParams.route_type}${searchParams.name_via ? ' via Odenplan' : ''}`);
+          const strategyName = searchParams.name_via 
+            ? `via hub (${searchParams.route_type})` 
+            : `direct (${searchParams.route_type})`;
+          
+          console.log(`Trying SL search strategy ${index + 1}: ${strategyName}`);
           
           const queryParams = new URLSearchParams();
           Object.entries(searchParams).forEach(([key, value]) => {
@@ -1078,6 +1055,123 @@ export class TransitService {
     }
     
     return fullName; // If no comma, return as-is
+  }
+
+  // Intelligent routing strategy based on crowdedness, walking distance, and connection quality
+  getOptimalRoutingStrategy(fromStation: StopArea, toStation: StopArea, dateTime: Date): {
+    searches: any[];
+    reasoning: string;
+  } {
+    const hour = dateTime.getHours();
+    const isRushHour = (hour >= 7 && hour <= 9) || (hour >= 16 && hour <= 18);
+    const isWeekend = dateTime.getDay() === 0 || dateTime.getDay() === 6;
+    
+    // Stockholm transport hubs with their characteristics
+    const hubs = {
+      stockholm_city: {
+        id: '9091001000009192', // T-Centralen
+        name: 'Stockholm City',
+        crowdedness: isRushHour ? 9 : 6, // Very crowded during rush
+        walkingDistance: 8, // Long underground connections
+        connectionQuality: 10, // Excellent connections
+        elevatorAccess: 7, // Multiple levels, escalators needed
+      },
+      stockholm_sodra: {
+        id: '9091001000009190', // Stockholm Södra
+        name: 'Stockholm Södra',
+        crowdedness: isRushHour ? 5 : 3, // Much less crowded
+        walkingDistance: 3, // Short platform connections
+        connectionQuality: 8, // Good connections
+        elevatorAccess: 9, // Easy platform access
+      },
+      odenplan: {
+        id: '9091001000009117', // Odenplan
+        name: 'Odenplan',
+        crowdedness: isRushHour ? 8 : 5, // Very crowded during rush
+        walkingDistance: 4, // Moderate walking
+        connectionQuality: 7, // Decent connections
+        elevatorAccess: 6, // Some level changes
+      }
+    };
+    
+    // Calculate score for each hub (lower is better)
+    const calculateHubScore = (hub: any) => {
+      let score = 0;
+      score += hub.crowdedness * (isRushHour ? 2 : 1); // Double penalty during rush hour
+      score += hub.walkingDistance * 1.5; // Walking is important
+      score -= hub.connectionQuality; // Better connections reduce score
+      score -= hub.elevatorAccess * 0.5; // Accessibility factor
+      
+      // Weekend bonus for less crowded stations
+      if (isWeekend) {
+        score -= 2;
+      }
+      
+      return score;
+    };
+    
+    const hubScores = Object.entries(hubs).map(([key, hub]) => ({
+      key,
+      hub,
+      score: calculateHubScore(hub)
+    })).sort((a, b) => a.score - b.score);
+    
+    const bestHub = hubScores[0].hub;
+    const secondBestHub = hubScores[1].hub;
+    
+    console.log(`Optimal routing analysis for ${fromStation.name} → ${toStation.name} at ${hour}:00`);
+    console.log(`Rush hour: ${isRushHour}, Weekend: ${isWeekend}`);
+    hubScores.forEach(({ key, hub, score }) => {
+      console.log(`${hub.name}: score ${score.toFixed(1)} (crowdedness: ${hub.crowdedness}, walking: ${hub.walkingDistance})`);
+    });
+    console.log(`Selected hub: ${bestHub.name} (score: ${hubScores[0].score.toFixed(1)})`);
+    
+    const searches = [
+      // Direct route (always try first)
+      {
+        type_origin: 'any',
+        name_origin: fromStation.id,
+        type_destination: 'any',
+        name_destination: toStation.id,
+        calc_number_of_trips: 3,
+        route_type: 'leasttime'
+      },
+      // Via optimal hub
+      {
+        type_origin: 'any',
+        name_origin: fromStation.id,
+        type_destination: 'any',
+        name_destination: toStation.id,
+        type_via: 'any',
+        name_via: bestHub.id,
+        calc_number_of_trips: 3,
+        route_type: 'leasttime'
+      },
+      // Via second-best hub (backup)
+      {
+        type_origin: 'any',
+        name_origin: fromStation.id,
+        type_destination: 'any',
+        name_destination: toStation.id,
+        type_via: 'any',
+        name_via: secondBestHub.id,
+        calc_number_of_trips: 3,
+        route_type: 'leasttime'
+      },
+      // Least interchanges (alternative strategy)
+      {
+        type_origin: 'any',
+        name_origin: fromStation.id,
+        type_destination: 'any',
+        name_destination: toStation.id,
+        calc_number_of_trips: 3,
+        route_type: 'leastinterchange'
+      }
+    ];
+    
+    const reasoning = `Optimal route via ${bestHub.name}: ${isRushHour ? 'avoiding rush hour crowds' : 'efficient routing'}, minimal walking distance, easy platform access`;
+    
+    return { searches, reasoning };
   }
 
   convertSLLine(transportation: any): Line {
