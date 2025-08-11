@@ -31,11 +31,25 @@ import {
 } from 'lucide-react';
 import type { CommuteRoute } from '@shared/schema';
 
+interface JourneyLeg {
+  id: string;
+  from: { id: string; name: string };
+  to: { id: string; name: string };
+  departureTime?: string;
+  arrivalTime?: string;
+  duration?: number;
+  line?: string;
+  isValid?: boolean;
+  validationError?: string;
+}
+
 interface CommuteRouteForm {
   name: string;
   origin: { id: string; name: string } | null;
   destination: { id: string; name: string } | null;
   departureTime: string;
+  timeType: 'depart' | 'arrive';
+  selectedDay: string;
   monday: boolean;
   tuesday: boolean;
   wednesday: boolean;
@@ -44,7 +58,8 @@ interface CommuteRouteForm {
   saturday: boolean;
   sunday: boolean;
   notificationsEnabled: boolean;
-
+  journeyLegs: JourneyLeg[];
+  isModular: boolean;
 }
 
 export function CommuteManager() {
@@ -60,6 +75,8 @@ export function CommuteManager() {
     origin: null,
     destination: null,
     departureTime: '',
+    timeType: 'depart',
+    selectedDay: 'monday',
     monday: false,
     tuesday: false,
     wednesday: false,
@@ -68,6 +85,8 @@ export function CommuteManager() {
     saturday: false,
     sunday: false,
     notificationsEnabled: true,
+    journeyLegs: [],
+    isModular: false,
   });
 
   // Fetch commute routes
@@ -204,6 +223,8 @@ export function CommuteManager() {
       origin: null,
       destination: null,
       departureTime: '',
+      timeType: 'depart',
+      selectedDay: 'monday',
       monday: false,
       tuesday: false,
       wednesday: false,
@@ -212,8 +233,126 @@ export function CommuteManager() {
       saturday: false,
       sunday: false,
       notificationsEnabled: true,
-
+      journeyLegs: [],
+      isModular: false,
     });
+  };
+
+  // Modular journey functions
+  const createJourney = async () => {
+    if (!formData.origin || !formData.destination) return;
+
+    try {
+      const journeyData = {
+        origin: formData.origin.id,
+        destination: formData.destination.id,
+        time: formData.departureTime,
+        timeType: formData.timeType,
+        day: formData.selectedDay
+      };
+
+      const journey = await apiRequest('/api/journey/plan', {
+        method: 'POST',
+        body: journeyData,
+      });
+
+      setFormData(prev => ({
+        ...prev,
+        journeyLegs: journey.legs,
+        isModular: true
+      }));
+
+      toast({
+        title: "Journey Created",
+        description: `Found route with ${journey.legs.length} legs`,
+      });
+    } catch (error) {
+      toast({
+        title: "Journey Creation Failed",
+        description: error instanceof Error ? error.message : "Failed to create journey",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const addIntermediateStop = () => {
+    const newLeg: JourneyLeg = {
+      id: `leg-${Date.now()}`,
+      from: { id: '', name: 'Select station' },
+      to: { id: '', name: 'Select station' },
+      isValid: false
+    };
+    
+    setFormData(prev => ({
+      ...prev,
+      journeyLegs: [...prev.journeyLegs, newLeg]
+    }));
+  };
+
+  const removeLeg = (legId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      journeyLegs: prev.journeyLegs.filter(leg => leg.id !== legId)
+    }));
+  };
+
+  const updateLegStation = (legId: string, type: 'from' | 'to', station: { id: string; name: string }) => {
+    setFormData(prev => ({
+      ...prev,
+      journeyLegs: prev.journeyLegs.map(leg => 
+        leg.id === legId 
+          ? { ...leg, [type]: station, isValid: false }
+          : leg
+      )
+    }));
+  };
+
+  const validateLeg = async (legId: string) => {
+    const leg = formData.journeyLegs.find(l => l.id === legId);
+    if (!leg || !leg.from.id || !leg.to.id) return;
+
+    try {
+      const validation = await apiRequest('/api/journey/validate-leg', {
+        method: 'POST',
+        body: {
+          fromId: leg.from.id,
+          toId: leg.to.id,
+          time: formData.departureTime,
+          day: formData.selectedDay
+        },
+      });
+
+      setFormData(prev => ({
+        ...prev,
+        journeyLegs: prev.journeyLegs.map(l => 
+          l.id === legId 
+            ? { 
+                ...l, 
+                isValid: validation.isValid,
+                validationError: validation.validationError,
+                departureTime: validation.departureTime,
+                arrivalTime: validation.arrivalTime,
+                duration: validation.duration,
+                line: validation.line
+              }
+            : l
+        )
+      }));
+
+      toast({
+        title: validation.isValid ? "Leg Valid" : "Leg Invalid",
+        description: validation.isValid 
+          ? `${leg.from.name} → ${leg.to.name} is valid`
+          : validation.validationError,
+        variant: validation.isValid ? "default" : "destructive",
+      });
+    } catch (error) {
+      toast({
+        title: "Validation Failed",
+        description: "Could not validate this leg",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -233,6 +372,8 @@ export function CommuteManager() {
       origin: { id: route.originAreaId, name: route.originName || route.originAreaId },
       destination: { id: route.destinationAreaId, name: route.destinationName || route.destinationAreaId },
       departureTime: route.departureTime,
+      timeType: 'depart',
+      selectedDay: 'monday',
       monday: route.monday || false,
       tuesday: route.tuesday || false,
       wednesday: route.wednesday || false,
@@ -241,7 +382,8 @@ export function CommuteManager() {
       saturday: route.saturday || false,
       sunday: route.sunday || false,
       notificationsEnabled: route.notificationsEnabled || true,
-
+      journeyLegs: [],
+      isModular: false,
     });
     setShowForm(true);
   };
@@ -322,7 +464,7 @@ export function CommuteManager() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="departureTime">Departure Time</Label>
+                  <Label htmlFor="departureTime">Time</Label>
                   <Input
                     id="departureTime"
                     type="time"
@@ -330,6 +472,44 @@ export function CommuteManager() {
                     onChange={(e) => setFormData({ ...formData, departureTime: e.target.value })}
                     required
                   />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label>Time Type</Label>
+                  <Select 
+                    value={formData.timeType} 
+                    onValueChange={(value: 'depart' | 'arrive') => setFormData({ ...formData, timeType: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="depart">Leave at</SelectItem>
+                      <SelectItem value="arrive">Arrive by</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Day of Week</Label>
+                  <Select 
+                    value={formData.selectedDay} 
+                    onValueChange={(value) => setFormData({ ...formData, selectedDay: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="monday">Monday</SelectItem>
+                      <SelectItem value="tuesday">Tuesday</SelectItem>
+                      <SelectItem value="wednesday">Wednesday</SelectItem>
+                      <SelectItem value="thursday">Thursday</SelectItem>
+                      <SelectItem value="friday">Friday</SelectItem>
+                      <SelectItem value="saturday">Saturday</SelectItem>
+                      <SelectItem value="sunday">Sunday</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
@@ -351,6 +531,116 @@ export function CommuteManager() {
                   indicatorColor="bg-red-500"
                 />
               </div>
+
+              {/* Journey Creation Button */}
+              {formData.origin && formData.destination && formData.departureTime && !formData.isModular && (
+                <div className="flex justify-center">
+                  <Button 
+                    type="button"
+                    onClick={createJourney}
+                    className="flex items-center gap-2"
+                  >
+                    <Route className="h-4 w-4" />
+                    Create Modular Journey
+                  </Button>
+                </div>
+              )}
+
+              {/* Modular Journey Legs */}
+              {formData.isModular && formData.journeyLegs.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold">Journey Legs</h3>
+                    <Button 
+                      type="button"
+                      onClick={addIntermediateStop}
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center gap-2"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Stop
+                    </Button>
+                  </div>
+
+                  {formData.journeyLegs.map((leg, index) => (
+                    <Card key={leg.id} className="p-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <Train className="h-4 w-4" />
+                          <span className="font-medium">Leg {index + 1}</span>
+                          {leg.isValid === true && <CheckCircle className="h-4 w-4 text-green-500" />}
+                          {leg.isValid === false && <XCircle className="h-4 w-4 text-red-500" />}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            onClick={() => validateLeg(leg.id)}
+                            variant="outline"
+                            size="sm"
+                          >
+                            Validate
+                          </Button>
+                          {formData.journeyLegs.length > 1 && (
+                            <Button
+                              type="button"
+                              onClick={() => removeLeg(leg.id)}
+                              variant="outline"
+                              size="sm"
+                            >
+                              <Minus className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <StationSearch
+                          label="From"
+                          placeholder="Select station"
+                          value={leg.from.id ? leg.from : null}
+                          onChange={(station) => station && updateLegStation(leg.id, 'from', station)}
+                          required
+                          indicatorColor="bg-blue-500"
+                        />
+                        <StationSearch
+                          label="To"
+                          placeholder="Select station"
+                          value={leg.to.id ? leg.to : null}
+                          onChange={(station) => station && updateLegStation(leg.id, 'to', station)}
+                          required
+                          indicatorColor="bg-purple-500"
+                        />
+                      </div>
+
+                      {leg.isValid && leg.departureTime && (
+                        <div className="mt-4 p-3 bg-green-50 dark:bg-green-950 rounded-lg">
+                          <div className="flex items-center gap-4 text-sm">
+                            <div className="flex items-center gap-1">
+                              <Clock className="h-4 w-4" />
+                              {leg.departureTime} → {leg.arrivalTime}
+                            </div>
+                            {leg.duration && (
+                              <div>{Math.round(leg.duration / 60)} min</div>
+                            )}
+                            {leg.line && (
+                              <Badge variant="outline">{leg.line}</Badge>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {leg.isValid === false && leg.validationError && (
+                        <div className="mt-4 p-3 bg-red-50 dark:bg-red-950 rounded-lg">
+                          <p className="text-sm text-red-600 dark:text-red-400">
+                            {leg.validationError}
+                          </p>
+                        </div>
+                      )}
+                    </Card>
+                  ))}
+                </div>
+              )}
 
               <Separator />
 
