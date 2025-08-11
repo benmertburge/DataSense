@@ -27,7 +27,8 @@ import {
   XCircle,
   Settings,
   Route,
-  Eye
+  Eye,
+  Minus
 } from 'lucide-react';
 import type { CommuteRoute } from '@shared/schema';
 
