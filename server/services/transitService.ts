@@ -59,12 +59,12 @@ export class TransitService {
 
     const allTrips: any[] = [];
     
-    // Make multiple API calls to get 20 departure options
-    for (let offset = 0; offset < 2; offset++) {
+    // Make multiple API calls to get 20 departure options (6 trips × 4 calls = 24 max)
+    for (let offset = 0; offset < 4; offset++) {
       const searchTime = new Date(dateTime || new Date());
       if (offset > 0) {
-        // For subsequent calls, add 30 minutes to get later departures
-        searchTime.setMinutes(searchTime.getMinutes() + (offset * 30));
+        // For subsequent calls, add 15 minutes to get more departure options
+        searchTime.setMinutes(searchTime.getMinutes() + (offset * 15));
       }
 
       const params = new URLSearchParams({
@@ -72,7 +72,7 @@ export class TransitService {
         destId: toId,
         format: 'json',
         accessId: apiKey,
-        numF: '10',  // ResRobot maximum per call
+        numF: '6',  // ResRobot v2.1 maximum (1-6)
         numB: '0',  
         searchForArrival: searchForArrival ? '1' : '0',
         maxChange: '1'  // Prefer direct routes and single transfers
