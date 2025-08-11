@@ -33,8 +33,15 @@ export default function DepartureTimeSelect({ origin, destination, value, onChan
   const baseTime = (() => {
     const now = new Date();
     // Round to next 30-minute mark
-    const minutes = now.getMinutes() >= 30 ? 60 : 30;
-    now.setMinutes(minutes, 0, 0);
+    const currentMinutes = now.getMinutes();
+    const nextMinutes = currentMinutes >= 30 ? 60 : 30;
+    now.setMinutes(nextMinutes, 0, 0);
+    
+    // If we set to 60 minutes, that means next hour
+    if (nextMinutes === 60) {
+      now.setHours(now.getHours() + 1, 0, 0, 0);
+    }
+    
     return now.toTimeString().slice(0, 5); // HH:MM format
   })();
 
