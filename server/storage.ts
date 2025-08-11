@@ -278,9 +278,7 @@ export class DatabaseStorage implements IStorage {
     return updatedRoute;
   }
 
-  async deleteCommuteRoute(id: string, userId: string): Promise<void> {
-    await db.delete(commuteRoutes).where(and(eq(commuteRoutes.id, id), eq(commuteRoutes.userId, userId)));
-  }
+
 
   async getActiveCommuteRoutesForDay(userId: string, dayOfWeek: string): Promise<CommuteRoute[]> {
     const dayColumn = dayOfWeek.toLowerCase() as keyof typeof commuteRoutes;

@@ -492,20 +492,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`DEPARTURE OPTIONS: Getting options from ${fromId} to ${toId} starting at ${baseTime}`);
       
       // Use existing transit service to get journey options
-      const journeys = await transitService.searchTrips(fromId, toId, today, baseTime, false);
+      const journeys = await transitService.searchTrips({
+        originId: fromId,
+        destinationId: toId,
+        date: today,
+        time: baseTime,
+        searchForArrival: false
+      });
 
       // Format for dropdown - limit to 20 options
       const options = journeys.slice(0, 20).map(journey => ({
         id: journey.id,
         plannedDeparture: journey.plannedDeparture,
         plannedArrival: journey.plannedArrival,
-        duration: journey.durationMinutes || 0,
-        legs: journey.legs.map(leg => ({
+        duration: Math.round((new Date(journey.plannedArrival).getTime() - new Date(journey.plannedDeparture).getTime()) / 60000),
+        legs: journey.legs?.map(leg => ({
           kind: leg.kind,
           line: leg.line?.number || leg.line?.name || 'Unknown',
-          from: { name: leg.from.name },
-          to: { name: leg.to.name }
-        }))
+          from: { name: leg.from?.name || 'Unknown' },
+          to: { name: leg.to?.name || 'Unknown' }
+        })) || []
       }));
 
       console.log(`DEPARTURE OPTIONS SUCCESS: Found ${options.length} departure options`);
@@ -564,7 +570,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`DELETE ROUTE: User ${userId} deleting route ${routeId}`);
       
-      const deleted = await storage.deleteCommuteRoute(userId, routeId);
+      const deleted = await storage.deleteCommuteRoute(routeId, userId);
       console.log(`DELETE RESULT: ${deleted ? 'Success' : 'Not found'}`);
       
       if (!deleted) {
