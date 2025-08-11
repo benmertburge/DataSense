@@ -11,7 +11,8 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { StationSearch } from '@/components/ui/station-search';
-import { Clock, Train, MapPin, Check, Edit } from 'lucide-react';
+import { Clock, Train, MapPin, Check, Edit, Plus, Trash2, Eye, Bell } from 'lucide-react';
+import type { CommuteRoute } from '@shared/schema';
 
 interface SimpleCommuteForm {
   // Step 1: Name
@@ -41,7 +42,7 @@ export function SimpleCommuteForm() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
-  const [step, setStep] = useState(1);
+  const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<SimpleCommuteForm>({
     name: '',
     origin: null,
@@ -59,10 +60,16 @@ export function SimpleCommuteForm() {
     editedJourney: null,
   });
 
-  // Step 7: Fetch journey alternatives when form is complete
+  // Fetch existing routes
+  const { data: routes = [], isLoading: loadingRoutes, refetch } = useQuery({
+    queryKey: ['/api/commute/routes'],
+    enabled: !!user,
+  }) as { data: CommuteRoute[], isLoading: boolean, refetch: () => void };
+
+  // Fetch journey alternatives when form is complete
   const { data: journeyAlternatives = [], isLoading: loadingJourneys } = useQuery({
     queryKey: ['/api/commute/departure-options', formData.origin?.id, formData.destination?.id, formData.departureTime],
-    enabled: !!(formData.origin && formData.destination && formData.departureTime && step >= 7),
+    enabled: !!(formData.origin && formData.destination && formData.departureTime && showForm),
     staleTime: 2 * 60 * 1000,
   }) as { data: any[], isLoading: boolean };
 
@@ -105,40 +112,33 @@ export function SimpleCommuteForm() {
     }
   };
 
-  const canProceedToStep = (stepNumber: number) => {
-    switch (stepNumber) {
-      case 2: return formData.name.trim().length > 0;
-      case 3: return formData.origin !== null;
-      case 4: return formData.destination !== null;
-      case 5: return formData.timeType !== null;
-      case 6: return formData.departureTime !== '';
-      case 7: return Object.values(formData).slice(4, 11).some(Boolean); // At least one day selected
-      case 8: return journeyAlternatives.length > 0;
-      case 9: return formData.selectedJourney !== null;
-      default: return true;
-    }
-  };
-
-  const nextStep = () => {
-    if (canProceedToStep(step + 1)) {
-      setStep(step + 1);
-    }
-  };
-
-  const prevStep = () => {
-    if (step > 1) {
-      setStep(step - 1);
-    }
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      origin: null,
+      destination: null,
+      timeType: 'depart',
+      departureTime: '08:00',
+      monday: true,
+      tuesday: true,
+      wednesday: true,
+      thursday: true,
+      friday: true,
+      saturday: false,
+      sunday: false,
+      selectedJourney: null,
+      editedJourney: null,
+    });
   };
 
   const saveRoute = useMutation({
     mutationFn: async () => {
       const routeData = {
         name: formData.name,
-        originAreaId: formData.origin?.id || '',
-        originAreaName: formData.origin?.name || '',
-        destinationAreaId: formData.destination?.id || '',
-        destinationAreaName: formData.destination?.name || '',
+        originId: formData.origin?.id || '',
+        originName: formData.origin?.name || '',
+        destinationId: formData.destination?.id || '',
+        destinationName: formData.destination?.name || '',
         departureTime: formData.departureTime,
         timeType: formData.timeType,
         monday: formData.monday,
@@ -160,281 +160,288 @@ export function SimpleCommuteForm() {
         description: "Your route has been saved successfully.",
       });
       queryClient.invalidateQueries({ queryKey: ['/api/commute/routes'] });
-      // Reset form
-      setStep(1);
-      setFormData({
-        name: '',
-        origin: null,
-        destination: null,
-        timeType: 'depart',
-        departureTime: '08:00',
-        monday: true,
-        tuesday: true,
-        wednesday: true,
-        thursday: true,
-        friday: true,
-        saturday: false,
-        sunday: false,
-        selectedJourney: null,
-        editedJourney: null,
+      setShowForm(false);
+      resetForm();
+    },
+  });
+
+  const deleteRoute = useMutation({
+    mutationFn: async (routeId: string) => {
+      return await apiRequest('DELETE', `/api/commute/routes/${routeId}`);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Route Deleted",
+        description: "Your commute route has been deleted.",
       });
+      queryClient.invalidateQueries({ queryKey: ['/api/commute/routes'] });
     },
   });
 
   return (
-    <Card className="w-full max-w-4xl mx-auto">
-      <CardHeader>
-        <CardTitle>Create Commute Route - Step {step} of 9</CardTitle>
-        <CardDescription>
-          {step === 1 && "Choose a name for your commute route"}
-          {step === 2 && "Select your starting station"}
-          {step === 3 && "Select your destination station"}
-          {step === 4 && "Choose departure or arrival time preference"}
-          {step === 5 && "Set your preferred time"}
-          {step === 6 && "Select which days this route is active"}
-          {step === 7 && "Choose from available journey alternatives"}
-          {step === 8 && "Select your preferred journey"}
-          {step === 9 && "Edit your journey if needed"}
-        </CardDescription>
-      </CardHeader>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Commute Routes</h1>
+          <p className="text-gray-600 dark:text-gray-300 mt-1">Manage your daily commute routes with real-time updates</p>
+        </div>
+        {!showForm && (
+          <Button onClick={() => setShowForm(true)} className="flex items-center gap-2">
+            <Plus className="h-4 w-4" />
+            New Route
+          </Button>
+        )}
+      </div>
+
+      {/* Create Route Form */}
+      {showForm && (
+        <Card className="w-full">
+          <CardHeader>
+            <CardTitle>Create New Commute Route</CardTitle>
+            <CardDescription>Fill in all fields step by step to create your route</CardDescription>
+          </CardHeader>
       
-      <CardContent className="space-y-6">
-        {/* Step 1: Name */}
-        {step === 1 && (
-          <div>
-            <Label>Route Name</Label>
-            <Input
-              placeholder="e.g. Home to Work"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            />
-          </div>
-        )}
-
-        {/* Step 2: From */}
-        {step === 2 && (
-          <StationSearch
-            label="From"
-            placeholder="Stockholm Central"
-            value={formData.origin}
-            onChange={(station) => setFormData({ ...formData, origin: station })}
-            required
-            indicatorColor="bg-green-500"
-          />
-        )}
-
-        {/* Step 3: To */}
-        {step === 3 && (
-          <StationSearch
-            label="To"
-            placeholder="Arlanda Airport"
-            value={formData.destination}
-            onChange={(station) => setFormData({ ...formData, destination: station })}
-            required
-            indicatorColor="bg-red-500"
-          />
-        )}
-
-        {/* Step 4: Time Type */}
-        {step === 4 && (
-          <div>
-            <Label>Time Preference</Label>
-            <Select 
-              value={formData.timeType} 
-              onValueChange={(value: 'depart' | 'arrive') => setFormData({ ...formData, timeType: value })}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="depart">Leave at</SelectItem>
-                <SelectItem value="arrive">Arrive by</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        {/* Step 5: Time */}
-        {step === 5 && (
-          <div>
-            <Label>{formData.timeType === 'arrive' ? 'Arrive by' : 'Leave at'}</Label>
-            <Select 
-              value={formData.departureTime} 
-              onValueChange={(value) => setFormData({ ...formData, departureTime: value })}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="max-h-60">
-                {timeOptions.map(time => (
-                  <SelectItem key={time} value={time}>{time}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        {/* Step 6: Active Days */}
-        {step === 6 && (
-          <div>
-            <Label className="text-base font-medium mb-4 block">Active Days</Label>
-            <div className="grid grid-cols-7 gap-2">
-              {[
-                { key: 'monday', label: 'Mon' },
-                { key: 'tuesday', label: 'Tue' },
-                { key: 'wednesday', label: 'Wed' },
-                { key: 'thursday', label: 'Thu' },
-                { key: 'friday', label: 'Fri' },
-                { key: 'saturday', label: 'Sat' },
-                { key: 'sunday', label: 'Sun' },
-              ].map(({ key, label }) => (
-                <div key={key} className="flex flex-col items-center space-y-2">
-                  <Switch
-                    id={key}
-                    checked={formData[key as keyof SimpleCommuteForm] as boolean}
-                    onCheckedChange={(checked) => 
-                      setFormData({ ...formData, [key]: checked })
-                    }
-                  />
-                  <Label htmlFor={key} className="text-sm">{label}</Label>
-                </div>
-              ))}
+          <CardContent className="space-y-6">
+            {/* Name */}
+            <div>
+              <Label>Route Name</Label>
+              <Input
+                placeholder="e.g. Home to Work"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              />
             </div>
-          </div>
-        )}
 
-        {/* Step 7: Journey Alternatives */}
-        {step === 7 && (
-          <div>
-            <h3 className="text-lg font-semibold mb-4">5 Journey Alternatives</h3>
-            {loadingJourneys ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                <p>Loading journey alternatives...</p>
-              </div>
-            ) : journeyAlternatives.length > 0 ? (
-              <div className="space-y-3">
-                {journeyAlternatives.slice(0, 5).map((journey: any, index: number) => (
-                  <Card 
-                    key={journey.id} 
-                    className={`p-4 cursor-pointer transition-colors ${
-                      formData.selectedJourney?.id === journey.id 
-                        ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950' 
-                        : 'hover:bg-gray-50 dark:hover:bg-gray-800'
-                    }`}
-                    onClick={() => setFormData({ ...formData, selectedJourney: journey })}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4" />
-                          <span className="font-medium">
-                            {formatTime(journey.plannedDeparture)} → {formatTime(journey.plannedArrival)}
-                          </span>
-                        </div>
-                        <Badge variant="outline">{getDuration(journey.plannedDeparture, journey.plannedArrival)}</Badge>
-                      </div>
-                      {formData.selectedJourney?.id === journey.id && (
-                        <Check className="h-5 w-5 text-blue-600" />
-                      )}
-                    </div>
-                    <div className="mt-2 flex gap-2">
-                      {journey.legs?.map((leg: any, legIndex: number) => (
-                        <Badge key={legIndex} variant="secondary">
-                          {leg.line} {leg.kind}
-                        </Badge>
-                      ))}
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <p className="text-center text-gray-500 py-8">No journey alternatives found</p>
-            )}
-          </div>
-        )}
+            {/* From/To */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <StationSearch
+                label="From"
+                placeholder="Stockholm Central"
+                value={formData.origin}
+                onChange={(station) => setFormData({ ...formData, origin: station })}
+                required
+                indicatorColor="bg-green-500"
+              />
+              <StationSearch
+                label="To"
+                placeholder="Arlanda Airport"
+                value={formData.destination}
+                onChange={(station) => setFormData({ ...formData, destination: station })}
+                required
+                indicatorColor="bg-red-500"
+              />
+            </div>
 
-        {/* Step 8: Selected Journey */}
-        {step === 8 && formData.selectedJourney && (
-          <div>
-            <h3 className="text-lg font-semibold mb-4">Selected Journey</h3>
-            <Card className="p-4 bg-green-50 dark:bg-green-950">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  <span className="font-medium">
-                    {formatTime(formData.selectedJourney.plannedDeparture)} → {formatTime(formData.selectedJourney.plannedArrival)}
-                  </span>
-                </div>
-                <Badge>{getDuration(formData.selectedJourney.plannedDeparture, formData.selectedJourney.plannedArrival)}</Badge>
+            {/* Time Type and Time */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label>Time Preference</Label>
+                <Select 
+                  value={formData.timeType} 
+                  onValueChange={(value: 'depart' | 'arrive') => setFormData({ ...formData, timeType: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="depart">Leave at</SelectItem>
+                    <SelectItem value="arrive">Arrive by</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="space-y-2">
-                {formData.selectedJourney.legs?.map((leg: any, index: number) => (
-                  <div key={index} className="flex items-center gap-3 text-sm">
-                    <Train className="h-4 w-4" />
-                    <span>{leg.from?.name} → {leg.to?.name}</span>
-                    <Badge variant="outline">{leg.line}</Badge>
+              <div>
+                <Label>{formData.timeType === 'arrive' ? 'Arrive by' : 'Leave at'}</Label>
+                <Select 
+                  value={formData.departureTime} 
+                  onValueChange={(value) => setFormData({ ...formData, departureTime: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {timeOptions.map(time => (
+                      <SelectItem key={time} value={time}>{time}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Active Days */}
+            <div>
+              <Label className="text-base font-medium mb-4 block">Active Days</Label>
+              <div className="grid grid-cols-7 gap-2">
+                {[
+                  { key: 'monday', label: 'Mon' },
+                  { key: 'tuesday', label: 'Tue' },
+                  { key: 'wednesday', label: 'Wed' },
+                  { key: 'thursday', label: 'Thu' },
+                  { key: 'friday', label: 'Fri' },
+                  { key: 'saturday', label: 'Sat' },
+                  { key: 'sunday', label: 'Sun' },
+                ].map(({ key, label }) => (
+                  <div key={key} className="flex flex-col items-center space-y-2">
+                    <Switch
+                      id={key}
+                      checked={formData[key as keyof SimpleCommuteForm] as boolean}
+                      onCheckedChange={(checked) => 
+                        setFormData({ ...formData, [key]: checked })
+                      }
+                    />
+                    <Label htmlFor={key} className="text-sm">{label}</Label>
                   </div>
                 ))}
               </div>
-            </Card>
-          </div>
-        )}
+            </div>
 
-        {/* Step 9: Edit Journey */}
-        {step === 9 && (
-          <div>
-            <h3 className="text-lg font-semibold mb-4">Edit Journey (Optional)</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Journey editing is coming soon. For now, your selected journey will be saved as-is.
-            </p>
-            <Card className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  <span className="font-medium">
-                    {formData.selectedJourney && formatTime(formData.selectedJourney.plannedDeparture)} → {formData.selectedJourney && formatTime(formData.selectedJourney.plannedArrival)}
-                  </span>
-                </div>
-                <Badge>{formData.selectedJourney && getDuration(formData.selectedJourney.plannedDeparture, formData.selectedJourney.plannedArrival)}</Badge>
+            {/* Journey Alternatives */}
+            {formData.origin && formData.destination && formData.departureTime && (
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Journey Alternatives</h3>
+                {loadingJourneys ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p>Loading journey alternatives...</p>
+                  </div>
+                ) : journeyAlternatives.length > 0 ? (
+                  <div className="space-y-3">
+                    {journeyAlternatives.slice(0, 5).map((journey: any, index: number) => (
+                      <Card 
+                        key={journey.id || index} 
+                        className={`p-4 cursor-pointer transition-colors ${
+                          formData.selectedJourney?.id === journey.id 
+                            ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950' 
+                            : 'hover:bg-gray-50 dark:hover:bg-gray-800'
+                        }`}
+                        onClick={() => setFormData({ ...formData, selectedJourney: journey })}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2">
+                              <Clock className="h-4 w-4" />
+                              <span className="font-medium">
+                                {formatTime(journey.plannedDeparture)} → {formatTime(journey.plannedArrival)}
+                              </span>
+                            </div>
+                            <Badge variant="outline">{getDuration(journey.plannedDeparture, journey.plannedArrival)}</Badge>
+                          </div>
+                          {formData.selectedJourney?.id === journey.id && (
+                            <Check className="h-5 w-5 text-blue-600" />
+                          )}
+                        </div>
+                        <div className="mt-2 flex gap-2">
+                          {journey.legs?.map((leg: any, legIndex: number) => (
+                            <Badge key={legIndex} variant="secondary">
+                              {leg.line} {leg.kind}
+                            </Badge>
+                          ))}
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-center text-gray-500 py-8">
+                    {formData.origin && formData.destination ? "No journey alternatives found" : "Complete all fields above to see journey options"}
+                  </p>
+                )}
               </div>
-              <Button variant="outline" size="sm" className="mt-2" disabled>
-                <Edit className="h-4 w-4 mr-2" />
-                Edit Journey (Coming Soon)
-              </Button>
-            </Card>
-          </div>
-        )}
+            )}
 
-        {/* Navigation */}
-        <div className="flex justify-between pt-6">
-          <Button 
-            variant="outline" 
-            onClick={prevStep}
-            disabled={step === 1}
-          >
-            Previous
-          </Button>
-          
-          <div className="flex gap-2">
-            {step < 9 ? (
+            {/* Form Actions */}
+            <div className="flex justify-between pt-6">
               <Button 
-                onClick={nextStep}
-                disabled={!canProceedToStep(step + 1)}
+                variant="outline" 
+                onClick={() => {
+                  setShowForm(false);
+                  resetForm();
+                }}
               >
-                Next
+                Cancel
               </Button>
-            ) : (
+              
               <Button 
                 onClick={() => saveRoute.mutate()}
-                disabled={saveRoute.isPending}
+                disabled={saveRoute.isPending || !formData.selectedJourney}
               >
                 {saveRoute.isPending ? 'Saving...' : 'Save Route'}
               </Button>
-            )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Existing Routes */}
+      <div>
+        <h2 className="text-xl font-semibold mb-4">Your Commute Routes</h2>
+        {loadingRoutes ? (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600 dark:text-gray-300">Loading your routes...</p>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        ) : routes.length === 0 ? (
+          <Card>
+            <CardContent className="text-center py-12">
+              <Train className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No routes yet</h3>
+              <p className="text-gray-600 dark:text-gray-300 mb-4">Create your first commute route to get started</p>
+              <Button onClick={() => setShowForm(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Route
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {routes.map((route) => (
+              <Card key={route.id}>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-medium mb-2">{route.name}</h3>
+                      <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-300">
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-4 w-4" />
+                          <span>{route.originName} → {route.destinationName}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4" />
+                          <span>Leave at {route.departureTime}</span>
+                        </div>
+                      </div>
+                      <div className="mt-2 flex gap-1">
+                        {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(day => 
+                          route[day as keyof typeof route] && (
+                            <Badge key={day} variant="outline" className="text-xs">
+                              {day.slice(0, 3)}
+                            </Badge>
+                          )
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm">
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" size="sm">
+                        <Bell className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => deleteRoute.mutate(route.id)}
+                        disabled={deleteRoute.isPending}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
