@@ -471,16 +471,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Convert first trip to modular legs format
       const bestTrip = trips[0];
-      const legs = bestTrip.legs.map((leg: any, index: number) => ({
-        id: `leg-${Date.now()}-${index}`,
-        from: { id: leg.Origin?.id || '', name: leg.Origin?.name || '' },
-        to: { id: leg.Destination?.id || '', name: leg.Destination?.name || '' },
-        departureTime: leg.Origin?.time,
-        arrivalTime: leg.Destination?.time,
-        duration: leg.duration || 0,
-        line: leg.Product?.line || leg.Product?.name || '',
-        isValid: true
-      }));
+      console.log('BEST TRIP LEGS:', JSON.stringify(bestTrip.legs, null, 2));
+      
+      const legs = bestTrip.legs.map((leg: any, index: number) => {
+        // Extract proper station data from ResRobot response
+        const fromStation = {
+          id: leg.Origin?.extId || leg.Origin?.id || '',
+          name: leg.Origin?.name || leg.from?.name || 'Unknown Station'
+        };
+        const toStation = {
+          id: leg.Destination?.extId || leg.Destination?.id || '',
+          name: leg.Destination?.name || leg.to?.name || 'Unknown Station'
+        };
+        
+        console.log(`LEG ${index + 1}:`, {
+          from: fromStation,
+          to: toStation,
+          line: leg.Product?.line || leg.Product?.name || leg.line || 'Unknown'
+        });
+        
+        return {
+          id: `leg-${Date.now()}-${index}`,
+          from: fromStation,
+          to: toStation,
+          departureTime: leg.Origin?.time || leg.departureTime,
+          arrivalTime: leg.Destination?.time || leg.arrivalTime,
+          duration: leg.duration || 0,
+          line: leg.Product?.line || leg.Product?.name || leg.line || 'Unknown',
+          isValid: true
+        };
+      });
 
       console.log('MODULAR JOURNEY SUCCESS:', legs.length, 'legs created');
       res.json({ 
