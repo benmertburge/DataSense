@@ -26,6 +26,7 @@ function Router() {
         <>
           <Route path="/" component={Home} />
           <Route path="/planner" component={JourneyPlanner} />
+          <Route path="/journey" component={JourneyPlanner} />
           <Route path="/compensation" component={Compensation} />
           <Route path="/commute" component={Commute} />
           <Route path="/settings" component={Settings} />

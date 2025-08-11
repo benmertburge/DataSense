@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Minus, Clock, MapPin, Train, Bus, Calendar } from 'lucide-react';
+import { Plus, Minus, Clock, MapPin, Train, Bus, Calendar, Edit } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -46,6 +46,51 @@ const DAYS_OF_WEEK = [
   { value: 'saturday', label: 'Saturday' },
   { value: 'sunday', label: 'Sunday' }
 ];
+
+// Station selector component for inline editing
+function StationSelector({ value, onChange, placeholder }: { 
+  value: string; 
+  onChange: (station: Station) => void; 
+  placeholder: string; 
+}) {
+  const [query, setQuery] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+
+  const { data: stations = [] } = useQuery({
+    queryKey: ['/api/sites/search', query],
+    enabled: query.length >= 2,
+    staleTime: 5 * 60 * 1000,
+  }) as { data: Station[] };
+
+  return (
+    <div className="relative">
+      <Input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder={placeholder}
+        onFocus={() => setIsOpen(true)}
+        onBlur={() => setTimeout(() => setIsOpen(false), 200)}
+      />
+      {isOpen && stations.length > 0 && (
+        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border rounded-md shadow-lg max-h-40 overflow-y-auto">
+          {stations.slice(0, 10).map(station => (
+            <div
+              key={station.id}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+              onClick={() => {
+                onChange(station);
+                setQuery(station.name);
+                setIsOpen(false);
+              }}
+            >
+              {station.name}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function JourneyPlanner() {
   const [originQuery, setOriginQuery] = useState('');
@@ -148,14 +193,24 @@ export default function JourneyPlanner() {
   const addIntermediateStop = () => {
     if (journeyLegs.length === 0) return;
     
+    // Insert a new leg before the final destination
+    const lastLeg = journeyLegs[journeyLegs.length - 1];
+    const secondLastLeg = journeyLegs.length > 1 ? journeyLegs[journeyLegs.length - 2] : null;
+    
     const newLeg: JourneyLeg = {
       id: `leg-${Date.now()}`,
-      from: journeyLegs[journeyLegs.length - 1].to,
-      to: selectedDestination!,
+      from: secondLastLeg ? secondLastLeg.to : journeyLegs[0].from,
+      to: { id: '', name: 'Select intermediate station', type: 'station' },
       isValid: false
     };
     
-    setJourneyLegs(prev => [...prev.slice(0, -1), newLeg, prev[prev.length - 1]]);
+    // Update the last leg to start from the new intermediate stop
+    const updatedLastLeg = {
+      ...lastLeg,
+      from: newLeg.to
+    };
+    
+    setJourneyLegs(prev => [...prev.slice(0, -1), newLeg, updatedLastLeg]);
   };
 
   const removeLeg = (legId: string) => {
@@ -163,11 +218,37 @@ export default function JourneyPlanner() {
   };
 
   const updateLegDestination = (legId: string, newDestination: Station) => {
-    setJourneyLegs(prev => prev.map(leg => 
-      leg.id === legId 
-        ? { ...leg, to: newDestination, isValid: false }
-        : leg
-    ));
+    setJourneyLegs(prev => {
+      const legIndex = prev.findIndex(leg => leg.id === legId);
+      if (legIndex === -1) return prev;
+      
+      const updatedLegs = [...prev];
+      updatedLegs[legIndex] = { ...updatedLegs[legIndex], to: newDestination, isValid: false };
+      
+      // Update the next leg's origin if it exists
+      if (legIndex + 1 < updatedLegs.length) {
+        updatedLegs[legIndex + 1] = { ...updatedLegs[legIndex + 1], from: newDestination, isValid: false };
+      }
+      
+      return updatedLegs;
+    });
+  };
+
+  const updateLegOrigin = (legId: string, newOrigin: Station) => {
+    setJourneyLegs(prev => {
+      const legIndex = prev.findIndex(leg => leg.id === legId);
+      if (legIndex === -1) return prev;
+      
+      const updatedLegs = [...prev];
+      updatedLegs[legIndex] = { ...updatedLegs[legIndex], from: newOrigin, isValid: false };
+      
+      // Update the previous leg's destination if it exists
+      if (legIndex > 0) {
+        updatedLegs[legIndex - 1] = { ...updatedLegs[legIndex - 1], to: newOrigin, isValid: false };
+      }
+      
+      return updatedLegs;
+    });
   };
 
   const validateAllLegs = () => {
@@ -346,11 +427,27 @@ export default function JourneyPlanner() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label className="text-sm text-gray-600 dark:text-gray-400">From</Label>
-                    <div className="font-medium">{leg.from.name}</div>
+                    {leg.from.name === 'Select intermediate station' ? (
+                      <StationSelector
+                        value=""
+                        onChange={(station) => updateLegOrigin(leg.id, station)}
+                        placeholder="Select origin station..."
+                      />
+                    ) : (
+                      <div className="font-medium">{leg.from.name}</div>
+                    )}
                   </div>
                   <div>
                     <Label className="text-sm text-gray-600 dark:text-gray-400">To</Label>
-                    <div className="font-medium">{leg.to.name}</div>
+                    {leg.to.name === 'Select intermediate station' ? (
+                      <StationSelector
+                        value=""
+                        onChange={(station) => updateLegDestination(leg.id, station)}
+                        placeholder="Select destination station..."
+                      />
+                    ) : (
+                      <div className="font-medium">{leg.to.name}</div>
+                    )}
                   </div>
                 </div>
 
