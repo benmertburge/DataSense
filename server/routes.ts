@@ -504,8 +504,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const journeys = await transitService.searchTrips(fromId, toId, stockholmDateTime, true);
       console.log(`DEPARTURE OPTIONS: Found ${journeys.length} journeys from real API`);
 
-      // Format for dropdown - limit to 20 options with SAME format as main page
-      const options = journeys.slice(0, 20).map(journey => ({
+      // Format ALL departure options - return all 20 with SAME format as main page
+      const options = journeys.map(journey => ({
         id: journey.id,
         plannedDeparture: journey.plannedDeparture,
         plannedArrival: journey.plannedArrival,

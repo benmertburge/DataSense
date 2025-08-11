@@ -29,20 +29,12 @@ interface DepartureTimeSelectProps {
 }
 
 export default function DepartureTimeSelect({ origin, destination, value, onChange }: DepartureTimeSelectProps) {
-  // Generate base times starting from current time, every 30 minutes for next 10 hours
+  // Use current time for departure search
   const baseTime = (() => {
     const now = new Date();
-    // Round to next 30-minute mark
-    const currentMinutes = now.getMinutes();
-    const nextMinutes = currentMinutes >= 30 ? 60 : 30;
-    now.setMinutes(nextMinutes, 0, 0);
-    
-    // If we set to 60 minutes, that means next hour
-    if (nextMinutes === 60) {
-      now.setHours(now.getHours() + 1, 0, 0, 0);
-    }
-    
-    return now.toTimeString().slice(0, 5); // HH:MM format
+    const hours = now.getHours().toString().padStart(2, '0');
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
   })();
 
   // Fetch departure options when origin and destination are selected

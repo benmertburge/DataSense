@@ -62,7 +62,7 @@ export class TransitService {
       destId: toId,
       format: 'json',
       accessId: apiKey,
-      numF: '3',  // Get fewer results but prefer direct routes
+      numF: '20',  // Get 20 departure options for commute selection
       numB: '0',  
       searchForArrival: searchForArrival ? '1' : '0',
       maxChange: '1'  // Prefer direct routes and single transfers
