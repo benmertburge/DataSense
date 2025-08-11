@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
+import { commuteMonitoringService } from "./services/commuteMonitoringService";
 import { transitService } from "./services/transitService";
 import { compensationService } from "./services/compensationService";
 import { 
@@ -547,6 +548,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching today's commute routes:", error);
       res.status(500).json({ error: "Failed to fetch today's commute routes" });
+    }
+  });
+
+  // Get real-time departures for a commute route
+  app.get('/api/commute/departures/:stationId/:day', isAuthenticated, async (req: any, res) => {
+    try {
+      const { stationId, day } = req.params;
+      
+      // Get real-time departures from Trafiklab
+      const departures = await transitService.getStationDepartures(stationId);
+      
+      // Format departures for frontend
+      const formattedDepartures = departures.map((dep: any) => ({
+        time: dep.plannedTime,
+        realTime: dep.expectedTime || dep.plannedTime,
+        platform: dep.platform,
+        line: dep.line?.number || 'Unknown',
+        destination: dep.directionText,
+        delay: dep.expectedTime ? Math.round((new Date(dep.expectedTime).getTime() - new Date(dep.plannedTime).getTime()) / 60000) : 0,
+        cancelled: dep.state === 'CANCELLED' || false
+      }));
+
+      res.json(formattedDepartures);
+    } catch (error) {
+      console.error("Error fetching departures:", error);
+      res.status(500).json({ error: "Failed to fetch departures" });
     }
   });
 

@@ -171,6 +171,20 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(commuteRoutes).where(eq(commuteRoutes.userId, userId));
   }
 
+  async getAllActiveCommuteRoutesForDay(day: string): Promise<CommuteRoute[]> {
+    const dayColumn = day as keyof Pick<CommuteRoute, 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'>;
+    
+    return await db
+      .select()
+      .from(commuteRoutes)
+      .where(
+        and(
+          eq(commuteRoutes.isActive, true),
+          eq(commuteRoutes[dayColumn], true)
+        )
+      );
+  }
+
   async updateCommuteRoute(userId: string, routeId: string, updates: Partial<CommuteRoute>): Promise<CommuteRoute | null> {
     const [updated] = await db
       .update(commuteRoutes)

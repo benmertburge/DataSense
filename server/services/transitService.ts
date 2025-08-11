@@ -462,7 +462,7 @@ export class TransitService {
     return stationMap[normalizedName] || null;
   }
 
-  private async getRealDepartures(stationId: string, dateTime?: Date): Promise<Departure[]> {
+  async getStationDepartures(stationId: string, dateTime?: Date): Promise<Departure[]> {
     try {
       const apiKey = process.env.TRAFIKLAB_API_KEY;
       if (!apiKey) {

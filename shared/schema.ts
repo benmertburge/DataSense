@@ -105,7 +105,6 @@ export const commuteRoutes = pgTable("commute_routes", {
   // Notification settings
   notificationsEnabled: boolean("notifications_enabled").default(true),
   alertMinutesBefore: integer("alert_minutes_before").default(15),
-  delayThresholdMinutes: integer("delay_threshold_minutes").default(20),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -244,17 +243,11 @@ export const insertServiceAlertSchema = createInsertSchema(serviceAlerts).omit({
   updatedAt: true,
 });
 
-// Types
+// Exported Types
 export type User = typeof users.$inferSelect;
 export type UpsertUser = typeof users.$inferInsert;
-export type SavedRoute = typeof savedRoutes.$inferSelect;
-export type InsertSavedRoute = z.infer<typeof insertSavedRouteSchema>;
 export type CommuteRoute = typeof commuteRoutes.$inferSelect;
 export type InsertCommuteRoute = z.infer<typeof insertCommuteRouteSchema>;
-export type Journey = typeof journeys.$inferSelect;
-export type InsertJourney = z.infer<typeof insertJourneySchema>;
-export type CompensationCase = typeof compensationCases.$inferSelect;
-export type InsertCompensationCase = z.infer<typeof insertCompensationCaseSchema>;
 
 export const journeyPlannerSchema = z.object({
   from: z.union([
@@ -287,26 +280,23 @@ export const compensationClaimSchema = z.object({
   consent: z.boolean().refine((val) => val === true, "Consent is required"),
 });
 
-// Types
-export type UpsertUser = typeof users.$inferInsert;
-export type User = typeof users.$inferSelect;
+// Additional Types
 export type StopArea = typeof stopAreas.$inferSelect;
 export type StopPoint = typeof stopPoints.$inferSelect;
 export type Line = typeof lines.$inferSelect;
 export type SavedRoute = typeof savedRoutes.$inferSelect;
 export type Journey = typeof journeys.$inferSelect;
+export type InsertJourney = z.infer<typeof insertJourneySchema>;
 export type CompensationCase = typeof compensationCases.$inferSelect;
+export type InsertCompensationCase = z.infer<typeof insertCompensationCaseSchema>;
 export type Deviation = typeof deviations.$inferSelect;
 export type UserNotification = typeof userNotifications.$inferSelect;
-export type PushSubscription = typeof pushSubscriptions.$inferSelect;
-export type ServiceAlert = typeof serviceAlerts.$inferSelect;
-
-export type InsertSavedRoute = z.infer<typeof insertSavedRouteSchema>;
-export type InsertJourney = z.infer<typeof insertJourneySchema>;
-export type InsertCompensationCase = z.infer<typeof insertCompensationCaseSchema>;
 export type InsertUserNotification = z.infer<typeof insertUserNotificationSchema>;
+export type PushSubscription = typeof pushSubscriptions.$inferSelect;
 export type InsertPushSubscription = z.infer<typeof insertPushSubscriptionSchema>;
+export type ServiceAlert = typeof serviceAlerts.$inferSelect;
 export type InsertServiceAlert = z.infer<typeof insertServiceAlertSchema>;
+export type InsertSavedRoute = z.infer<typeof insertSavedRouteSchema>;
 export type JourneyPlannerRequest = z.infer<typeof journeyPlannerSchema>;
 export type CompensationClaimRequest = z.infer<typeof compensationClaimSchema>;
 

@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { StationSearch } from '@/components/ui/station-search';
+import { DepartureTimes } from './departure-times';
 import { 
   Plus, 
   Train, 
@@ -25,7 +26,8 @@ import {
   CheckCircle,
   XCircle,
   Settings,
-  Route
+  Route,
+  Eye
 } from 'lucide-react';
 import type { CommuteRoute } from '@shared/schema';
 
@@ -43,7 +45,6 @@ interface CommuteRouteForm {
   sunday: boolean;
   notificationsEnabled: boolean;
   alertMinutesBefore: number;
-  delayThresholdMinutes: number;
 }
 
 export function CommuteManager() {
@@ -53,6 +54,7 @@ export function CommuteManager() {
   
   const [showForm, setShowForm] = useState(false);
   const [editingRoute, setEditingRoute] = useState<CommuteRoute | null>(null);
+  const [showDepartures, setShowDepartures] = useState<CommuteRoute | null>(null);
   const [formData, setFormData] = useState<CommuteRouteForm>({
     name: '',
     origin: null,
@@ -67,27 +69,13 @@ export function CommuteManager() {
     sunday: false,
     notificationsEnabled: true,
     alertMinutesBefore: 15,
-    delayThresholdMinutes: 20,
   });
 
   // Fetch commute routes
   const { data: routes = [], isLoading, refetch } = useQuery({
     queryKey: ['/api/commute/routes'],
     enabled: !!user,
-    onError: (error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-    }
-  });
+  }) as { data: CommuteRoute[], isLoading: boolean, refetch: () => void };
 
   // Create commute route mutation
   const createRouteMutation = useMutation({
@@ -109,7 +97,6 @@ export function CommuteManager() {
         sunday: data.sunday,
         notificationsEnabled: data.notificationsEnabled,
         alertMinutesBefore: data.alertMinutesBefore,
-        delayThresholdMinutes: data.delayThresholdMinutes,
       };
       const response = await apiRequest('POST', '/api/commute/routes', apiData);
       return response.json();
@@ -227,7 +214,6 @@ export function CommuteManager() {
       sunday: false,
       notificationsEnabled: true,
       alertMinutesBefore: 15,
-      delayThresholdMinutes: 20,
     });
   };
 
@@ -248,16 +234,15 @@ export function CommuteManager() {
       origin: { id: route.originAreaId, name: route.originName || route.originAreaId },
       destination: { id: route.destinationAreaId, name: route.destinationName || route.destinationAreaId },
       departureTime: route.departureTime,
-      monday: route.monday,
-      tuesday: route.tuesday,
-      wednesday: route.wednesday,
-      thursday: route.thursday,
-      friday: route.friday,
-      saturday: route.saturday,
-      sunday: route.sunday,
-      notificationsEnabled: route.notificationsEnabled,
-      alertMinutesBefore: route.alertMinutesBefore,
-      delayThresholdMinutes: route.delayThresholdMinutes,
+      monday: route.monday || false,
+      tuesday: route.tuesday || false,
+      wednesday: route.wednesday || false,
+      thursday: route.thursday || false,
+      friday: route.friday || false,
+      saturday: route.saturday || false,
+      sunday: route.sunday || false,
+      notificationsEnabled: route.notificationsEnabled || true,
+      alertMinutesBefore: route.alertMinutesBefore || 15,
     });
     setShowForm(true);
   };
@@ -418,7 +403,7 @@ export function CommuteManager() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="alertBefore">Alert Before Departure</Label>
+                    <Label htmlFor="alertBefore">Alert before departure</Label>
                     <Select
                       value={formData.alertMinutesBefore.toString()}
                       onValueChange={(value) => 
@@ -436,27 +421,24 @@ export function CommuteManager() {
                         <SelectItem value="30">30 minutes</SelectItem>
                       </SelectContent>
                     </Select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      System will monitor for delays every minute between alert time and departure
+                    </p>
                   </div>
                   
                   <div>
-                    <Label htmlFor="delayThreshold">Delay Alert Threshold</Label>
-                    <Select
-                      value={formData.delayThresholdMinutes.toString()}
-                      onValueChange={(value) => 
-                        setFormData({ ...formData, delayThresholdMinutes: parseInt(value) })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="10">10 minutes</SelectItem>
-                        <SelectItem value="15">15 minutes</SelectItem>
-                        <SelectItem value="20">20 minutes</SelectItem>
-                        <SelectItem value="30">30 minutes</SelectItem>
-                        <SelectItem value="45">45 minutes</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label htmlFor="departureTime">Preferred departure time</Label>
+                    <Input
+                      id="departureTime"
+                      type="time"
+                      value={formData.departureTime}
+                      onChange={(e) => setFormData({ ...formData, departureTime: e.target.value })}
+                      required
+                      className="bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      System will show all departures around this time
+                    </p>
                   </div>
                 </div>
               </div>
@@ -568,7 +550,7 @@ export function CommuteManager() {
                         </div>
                         {route.notificationsEnabled && (
                           <div>
-                            Delay threshold: {route.delayThresholdMinutes}min
+                            Live monitoring between alert and departure
                           </div>
                         )}
                       </div>
@@ -578,7 +560,16 @@ export function CommuteManager() {
                       <Button
                         variant="outline"
                         size="sm"
+                        onClick={() => setShowDepartures(route)}
+                        title="View departure times"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => handleEdit(route)}
+                        title="Edit route"
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -587,6 +578,7 @@ export function CommuteManager() {
                         size="sm"
                         onClick={() => handleDelete(route.id)}
                         disabled={deleteRouteMutation.isPending}
+                        title="Delete route"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -598,6 +590,16 @@ export function CommuteManager() {
           </div>
         )}
       </div>
+
+      {/* Departure Times Modal */}
+      {showDepartures && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <DepartureTimes 
+            route={showDepartures} 
+            onClose={() => setShowDepartures(null)} 
+          />
+        </div>
+      )}
     </div>
   );
 }
