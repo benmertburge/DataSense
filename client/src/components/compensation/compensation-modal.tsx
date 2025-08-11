@@ -65,10 +65,11 @@ export default function CompensationModal({
         throw new Error('No eligible compensation case found');
       }
 
-      // Submit the claim
-      const response = await apiRequest('POST', '/api/compensation/submit', {
+      // Submit to SL web form automatically
+      const response = await apiRequest('POST', '/api/compensation/submit-to-sl', {
         caseId,
         claimData: data,
+        journeyData: activeJourney,
       });
       return response.json();
     },

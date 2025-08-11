@@ -274,6 +274,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post('/api/compensation/submit-to-sl', isAuthenticated, async (req: any, res) => {
+    try {
+      const { caseId, claimData, journeyData } = req.body;
+      const validatedClaimData = compensationClaimSchema.parse(claimData);
+      
+      // Submit directly to SL web form with authentic journey data
+      const result = await compensationService.submitToSLWebForm(caseId, validatedClaimData, journeyData);
+      res.json(result);
+    } catch (error) {
+      console.error("Error submitting to SL web form:", error);
+      res.status(400).json({ message: error instanceof Error ? error.message : "Failed to submit to SL" });
+    }
+  });
+
   app.get('/api/compensation/cases/:id/pdf', async (req, res) => {
     try {
       const { id } = req.params;
