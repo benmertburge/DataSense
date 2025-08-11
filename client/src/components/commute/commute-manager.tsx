@@ -240,9 +240,24 @@ export function CommuteManager() {
 
   // Modular journey functions
   const createJourney = async () => {
-    if (!formData.origin || !formData.destination) return;
+    if (!formData.origin || !formData.destination) {
+      toast({
+        title: "Missing Information",
+        description: "Please select both origin and destination stations",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
+      console.log('STARTING JOURNEY CREATION:', {
+        origin: formData.origin.id,
+        destination: formData.destination.id,
+        time: formData.departureTime,
+        timeType: formData.timeType,
+        day: formData.selectedDay
+      });
+
       const journeyData = {
         origin: formData.origin.id,
         destination: formData.destination.id,
@@ -257,13 +272,23 @@ export function CommuteManager() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(journeyData),
+        credentials: 'include'
       });
       
+      console.log('JOURNEY API RESPONSE STATUS:', response.status);
+      
       if (!response.ok) {
-        throw new Error(`Journey planning failed: ${response.status}`);
+        const errorText = await response.text();
+        console.error('JOURNEY API ERROR:', errorText);
+        throw new Error(`Journey planning failed: ${response.status} - ${errorText}`);
       }
       
       const journey = await response.json();
+      console.log('JOURNEY API SUCCESS:', journey);
+
+      if (!journey.legs || journey.legs.length === 0) {
+        throw new Error('No journey legs returned from API');
+      }
 
       setFormData(prev => ({
         ...prev,
@@ -272,10 +297,11 @@ export function CommuteManager() {
       }));
 
       toast({
-        title: "Journey Created",
-        description: `Found route with ${journey.legs.length} legs`,
+        title: "Modular Journey Created!",
+        description: `Route broken into ${journey.legs.length} editable legs. You can now modify each leg individually.`,
       });
     } catch (error) {
+      console.error('JOURNEY CREATION ERROR:', error);
       toast({
         title: "Journey Creation Failed",
         description: error instanceof Error ? error.message : "Failed to create journey",
@@ -555,14 +581,23 @@ export function CommuteManager() {
 
               {/* Journey Creation Button */}
               {formData.origin && formData.destination && formData.departureTime && !formData.isModular && (
-                <div className="flex justify-center">
+                <div className="flex justify-center p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
                   <Button 
                     type="button"
-                    onClick={createJourney}
-                    className="flex items-center gap-2"
+                    onClick={() => {
+                      console.log('CREATE JOURNEY CLICKED:', { 
+                        origin: formData.origin, 
+                        destination: formData.destination, 
+                        time: formData.departureTime,
+                        timeType: formData.timeType 
+                      });
+                      createJourney();
+                    }}
+                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+                    size="lg"
                   >
-                    <Route className="h-4 w-4" />
-                    Create Modular Journey
+                    <Route className="h-5 w-5" />
+                    Create Modular Journey ({formData.timeType === 'arrive' ? 'Arrive by' : 'Leave at'} {formData.departureTime})
                   </Button>
                 </div>
               )}
