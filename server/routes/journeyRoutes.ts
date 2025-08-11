@@ -6,7 +6,7 @@ const transitService = new TransitService();
 
 export function registerJourneyRoutes(app: Express) {
   // Plan a journey with proper leg validation
-  app.post('/api/journey/plan', isAuthenticated, async (req, res) => {
+  app.post('/api/journey/plan', async (req, res) => {
     try {
       const { origin, destination, timeType, time, day } = req.body;
       
@@ -144,7 +144,7 @@ export function registerJourneyRoutes(app: Express) {
   });
 
   // Validate individual leg
-  app.post('/api/journey/validate-leg', isAuthenticated, async (req, res) => {
+  app.post('/api/journey/validate-leg', async (req, res) => {
     try {
       const { fromId, toId, day, time } = req.body;
       

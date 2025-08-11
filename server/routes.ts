@@ -62,7 +62,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Transit data routes
-  app.get('/api/sites/search', isAuthenticated, async (req, res) => {
+  app.get('/api/sites/search', async (req, res) => {
     try {
       const query = req.query.q as string;
       if (!query || query.length < 2) {

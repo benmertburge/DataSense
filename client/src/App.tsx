@@ -20,8 +20,17 @@ function Router() {
 
   return (
     <Switch>
-      {isLoading || !isAuthenticated ? (
-        <Route path="/" component={Landing} />
+      {isLoading ? (
+        <Route path="*">
+          <div className="min-h-screen flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p>Loading...</p>
+            </div>
+          </div>
+        </Route>
+      ) : !isAuthenticated ? (
+        <Route path="*" component={Landing} />
       ) : (
         <>
           <Route path="/" component={Home} />
@@ -32,9 +41,9 @@ function Router() {
           <Route path="/settings" component={Settings} />
           <Route path="/notifications" component={Notifications} />
           <Route path="/sl-form-demo" component={SLFormSimulator} />
+          <Route component={NotFound} />
         </>
       )}
-      <Route component={NotFound} />
     </Switch>
   );
 }
