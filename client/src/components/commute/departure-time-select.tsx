@@ -40,7 +40,7 @@ export default function DepartureTimeSelect({ origin, destination, value, onChan
 
   // Fetch departure options when origin and destination are selected
   const { data: departureOptions = [], isLoading } = useQuery({
-    queryKey: [`/api/commute/departure-options/${origin?.id}/${destination?.id}/${baseTime}`],
+    queryKey: ['/api/commute/departure-options', origin?.id, destination?.id, baseTime],
     enabled: !!origin?.id && !!destination?.id,
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   }) as { data: DepartureOption[], isLoading: boolean };

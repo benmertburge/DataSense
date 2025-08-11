@@ -403,8 +403,8 @@ export function CommuteManager() {
                 <div>
                   <Label htmlFor="departureTime">Time to Leave</Label>
                   <DepartureTimeSelect
-                    origin={formData.origin}
-                    destination={formData.destination}
+                    origin={formData.origin || undefined}
+                    destination={formData.destination || undefined}
                     value={formData.departureTime}
                     onChange={(time) => setFormData({ ...formData, departureTime: time })}
                   />

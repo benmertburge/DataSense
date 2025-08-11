@@ -498,9 +498,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`DEPARTURE OPTIONS: Getting real trips from ${fromId} to ${toId} starting at ${baseTime}`);
       console.log(`DEPARTURE OPTIONS: Created dateTime object: ${stockholmDateTime.toString()}`);
+      console.log(`DEPARTURE OPTIONS: Hours/Minutes: ${stockholmDateTime.getHours()}:${stockholmDateTime.getMinutes()}`);
       
       // Use EXACT SAME transit service call as main journey planner
       const journeys = await transitService.searchTrips(fromId, toId, stockholmDateTime, true);
+      console.log(`DEPARTURE OPTIONS: Found ${journeys.length} journeys from real API`);
 
       // Format for dropdown - limit to 20 options with SAME format as main page
       const options = journeys.slice(0, 20).map(journey => ({
