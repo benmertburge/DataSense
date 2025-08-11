@@ -38,6 +38,10 @@ export const getQueryFn: <T>(options: {
       } else {
         url = queryKey.join("/");
       }
+    } else if (Array.isArray(queryKey) && queryKey.length === 4 && queryKey[0] === '/api/commute/departure-options') {
+      // Handle departure options: ['/api/commute/departure-options', fromId, toId, baseTime]
+      const [baseUrl, fromId, toId, baseTime] = queryKey;
+      url = `${baseUrl}/${fromId}/${toId}/${baseTime}`;
     } else {
       url = queryKey.join("/");
     }
