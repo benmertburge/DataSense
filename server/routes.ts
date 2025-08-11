@@ -572,7 +572,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`DELETE ROUTE: User ${userId} deleting route ${routeId}`);
       
-      const deleted = await storage.deleteCommuteRoute(routeId, userId);
+      const deleted = await storage.deleteCommuteRoute(userId, routeId);
       console.log(`DELETE RESULT: ${deleted ? 'Success' : 'Not found'}`);
       
       if (!deleted) {
