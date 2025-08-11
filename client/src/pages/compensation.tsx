@@ -122,6 +122,33 @@ export default function Compensation() {
           </Card>
         </div>
 
+        {/* SL Form Demo */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <span className="text-orange-600">SL</span>
+              Form Automation Demo
+            </CardTitle>
+            <p className="text-sm text-gray-600">
+              Interactive walkthrough of SL's 6-page dynamic compensation form with real Swedish transport data
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-4">
+              <Button 
+                onClick={() => window.open('/sl-form-demo', '_blank')}
+                className="flex items-center gap-2"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Try SL Form Demo
+              </Button>
+              <p className="text-xs text-gray-500 flex items-center">
+                Example: Tumba → Stockholm City with 35-minute delay
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Claims List */}
         <Card>
           <CardHeader>

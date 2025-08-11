@@ -11,6 +11,7 @@ import Home from "@/pages/home";
 import JourneyPlanner from "@/pages/journey-planner";
 import Compensation from "@/pages/compensation";
 import Commute from "@/pages/commute";
+import { SLFormSimulator } from "@/components/compensation/sl-form-simulator";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -25,6 +26,7 @@ function Router() {
           <Route path="/planner" component={JourneyPlanner} />
           <Route path="/compensation" component={Compensation} />
           <Route path="/commute" component={Commute} />
+          <Route path="/sl-form-demo" component={SLFormSimulator} />
         </>
       )}
       <Route component={NotFound} />
