@@ -57,53 +57,73 @@ export class TransitService {
       throw new Error("RESROBOT_API_KEY environment variable is required for real data");
     }
 
-    const params = new URLSearchParams({
-      originId: fromId,
-      destId: toId,
-      format: 'json',
-      accessId: apiKey,
-      numF: '20',  // Get 20 departure options for commute selection
-      numB: '0',  
-      searchForArrival: searchForArrival ? '1' : '0',
-      maxChange: '1'  // Prefer direct routes and single transfers
-    });
+    const allTrips: any[] = [];
+    
+    // Make multiple API calls to get 20 departure options
+    for (let offset = 0; offset < 2; offset++) {
+      const searchTime = new Date(dateTime || new Date());
+      if (offset > 0) {
+        // For subsequent calls, add 30 minutes to get later departures
+        searchTime.setMinutes(searchTime.getMinutes() + (offset * 30));
+      }
 
-    if (dateTime) {
+      const params = new URLSearchParams({
+        originId: fromId,
+        destId: toId,
+        format: 'json',
+        accessId: apiKey,
+        numF: '10',  // ResRobot maximum per call
+        numB: '0',  
+        searchForArrival: searchForArrival ? '1' : '0',
+        maxChange: '1'  // Prefer direct routes and single transfers
+      });
+
       // ResRobot expects time as HH:MM and date as YYYY-MM-DD
-      const hours = dateTime.getHours().toString().padStart(2, '0');
-      const minutes = dateTime.getMinutes().toString().padStart(2, '0');
+      const hours = searchTime.getHours().toString().padStart(2, '0');
+      const minutes = searchTime.getMinutes().toString().padStart(2, '0');
       params.append('time', `${hours}:${minutes}`);
-      params.append('date', dateTime.toISOString().slice(0, 10));
+      params.append('date', searchTime.toISOString().slice(0, 10));
+
+      const url = `${this.RESROBOT_API_BASE}/trip?${params}`;
+      console.log(`ResRobot Trip API (call ${offset + 1}): ${url.replace(apiKey, 'API_KEY_HIDDEN')}`);
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`ResRobot API call ${offset + 1} failed: ${response.status} - ${errorText}`);
+        continue; // Skip this call and continue with others
+      }
+
+      const data = await response.json();
+      
+      if (data.errorCode) {
+        console.error(`ResRobot API call ${offset + 1} error: ${data.errorCode} - ${data.errorText}`);
+        continue;
+      }
+
+      if (data.Trip && Array.isArray(data.Trip)) {
+        allTrips.push(...data.Trip);
+        console.log(`ResRobot call ${offset + 1} returned ${data.Trip.length} trips`);
+      }
     }
 
-    const url = `${this.RESROBOT_API_BASE}/trip?${params}`;
-    console.log(`ResRobot Trip API: ${url.replace(apiKey, 'API_KEY_HIDDEN')}`);
-    console.log(`API PARAM searchForArrival: ${searchForArrival ? '1 (ARRIVE BY)' : '0 (DEPART AT)'}`);
-
-    const response = await fetch(url);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`ResRobot API failed: ${response.status} - ${errorText}`);
+    if (allTrips.length === 0) {
+      throw new Error("ResRobot API returned no trips from any time slot");
     }
 
-    const data = await response.json();
+    console.log(`ResRobot returned ${allTrips.length} total real trips from multiple time slots`);
     
-    if (data.errorCode) {
-      throw new Error(`ResRobot API error: ${data.errorCode} - ${data.errorText}`);
-    }
-
-    if (!data.Trip || !Array.isArray(data.Trip)) {
-      throw new Error("ResRobot API returned no trips");
-    }
-
-    console.log(`ResRobot returned ${data.Trip.length} real trips`);
+    // Convert trips and remove duplicates based on departure time
+    const trips = allTrips.map((trip: any, index: number) => this.convertResRobotTripToItinerary(trip, index));
     
-    // Convert trips and sort by how close they are to user's time preference
-    const trips = data.Trip.map((trip: any, index: number) => this.convertResRobotTripToItinerary(trip, index));
+    // Remove duplicates and sort by departure time
+    const uniqueTrips = trips.filter((trip, index, self) => 
+      index === self.findIndex(t => t.plannedDeparture === trip.plannedDeparture)
+    );
     
     if (dateTime) {
       const userTime = dateTime.getTime();
-      trips.sort((a, b) => {
+      uniqueTrips.sort((a, b) => {
         if (searchForArrival) {
           // For "arrive by", sort by arrival time closest to user's time
           const aDiff = Math.abs(new Date(a.plannedArrival).getTime() - userTime);
@@ -116,10 +136,11 @@ export class TransitService {
           return aDiff - bDiff;
         }
       });
-      console.log(`SORTED: Trips ordered by proximity to ${searchForArrival ? 'arrival' : 'departure'} time`);
+      console.log(`SORTED: ${uniqueTrips.length} unique trips ordered by proximity to ${searchForArrival ? 'arrival' : 'departure'} time`);
     }
     
-    return trips;
+    // Return up to 20 trips
+    return uniqueTrips.slice(0, 20);
   }
 
   private convertResRobotTripToItinerary(resRobotTrip: any, index: number): Itinerary {
