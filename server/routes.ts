@@ -455,8 +455,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log('MODULAR JOURNEY PLAN:', { origin, destination, time, timeType, day });
 
-      // Use the existing trip search functionality
-      const trips = await transitService.searchTrips(origin, destination, time, timeType === 'arrive');
+      // Parse time properly for Swedish transit
+      const [hour, minute] = time.split(':').map(Number);
+      const searchDateTime = new Date();
+      searchDateTime.setHours(hour, minute, 0, 0);
+
+      console.log(`JOURNEY PLAN: Using ${timeType} time ${time} -> ${searchDateTime.toISOString()}`);
+      
+      // Use the existing trip search functionality with proper arrive by logic
+      const trips = await transitService.searchTrips(origin, destination, searchDateTime, timeType === 'arrive');
       
       if (!trips || trips.length === 0) {
         return res.status(404).json({ error: 'No routes found' });
@@ -498,8 +505,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log('VALIDATING LEG:', { fromId, toId, time, day });
 
+      // Parse time for validation
+      const [hour, minute] = (time || '08:00').split(':').map(Number);
+      const searchDateTime = new Date();
+      searchDateTime.setHours(hour, minute, 0, 0);
+      
       // Search for direct connection between stations
-      const trips = await transitService.searchTrips(fromId, toId, time || '08:00', false);
+      const trips = await transitService.searchTrips(fromId, toId, searchDateTime, false);
       
       if (!trips || trips.length === 0) {
         console.log('LEG VALIDATION FAILED: No connection found');

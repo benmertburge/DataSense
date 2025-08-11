@@ -519,46 +519,44 @@ export function CommuteManager() {
                 </div>
               </div>
 
-              {/* Only show time type and day selection for modular journey */}
-              {!formData.isModular && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label>Time Type</Label>
-                    <Select 
-                      value={formData.timeType} 
-                      onValueChange={(value: 'depart' | 'arrive') => setFormData({ ...formData, timeType: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="depart">Leave at</SelectItem>
-                        <SelectItem value="arrive">Arrive by</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Planning Day</Label>
-                    <Select 
-                      value={formData.selectedDay} 
-                      onValueChange={(value) => setFormData({ ...formData, selectedDay: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="monday">Monday</SelectItem>
-                        <SelectItem value="tuesday">Tuesday</SelectItem>
-                        <SelectItem value="wednesday">Wednesday</SelectItem>
-                        <SelectItem value="thursday">Thursday</SelectItem>
-                        <SelectItem value="friday">Friday</SelectItem>
-                        <SelectItem value="saturday">Saturday</SelectItem>
-                        <SelectItem value="sunday">Sunday</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+              {/* Time type and planning day - SEPARATE from weekly schedule */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label>Time Type</Label>
+                  <Select 
+                    value={formData.timeType} 
+                    onValueChange={(value: 'depart' | 'arrive') => setFormData({ ...formData, timeType: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="depart">Leave at</SelectItem>
+                      <SelectItem value="arrive">Arrive by</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              )}
+                <div>
+                  <Label>Planning Day (for timetables)</Label>
+                  <Select 
+                    value={formData.selectedDay} 
+                    onValueChange={(value) => setFormData({ ...formData, selectedDay: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="monday">Monday</SelectItem>
+                      <SelectItem value="tuesday">Tuesday</SelectItem>
+                      <SelectItem value="wednesday">Wednesday</SelectItem>
+                      <SelectItem value="thursday">Thursday</SelectItem>
+                      <SelectItem value="friday">Friday</SelectItem>
+                      <SelectItem value="saturday">Saturday</SelectItem>
+                      <SelectItem value="sunday">Sunday</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <StationSearch

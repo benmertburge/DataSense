@@ -149,7 +149,10 @@ export default function DepartureTimeSelect({ origin, destination, value, onChan
             className={`border border-gray-200 dark:border-gray-600 rounded-lg p-4 cursor-pointer transition-colors ${
               isSelected ? 'border-blue-600 dark:border-blue-400 bg-blue-50 dark:bg-blue-950' : 'hover:border-blue-600 dark:hover:border-blue-400'
             }`}
-            onClick={() => onChange(departureTime)}
+            onClick={() => {
+              console.log('ROUTE SELECTION: Clicked route', index, 'without triggering reload');
+              onChange(departureTime);
+            }}
           >
             <div className="flex justify-between items-start mb-3">
               <div className="flex items-center space-x-2">
