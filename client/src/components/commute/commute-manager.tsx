@@ -241,7 +241,7 @@ export function CommuteManager() {
       saturday: route.saturday || false,
       sunday: route.sunday || false,
       notificationsEnabled: route.notificationsEnabled || true,
-      alertMinutesBefore: route.alertMinutesBefore || 15,
+
     });
     setShowForm(true);
   };
@@ -500,7 +500,7 @@ export function CommuteManager() {
                         
                         <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
                           <Clock className="h-4 w-4" />
-                          <span className="text-sm">{route.departureTime}</span>
+                          <span className="text-sm">Leave at {route.departureTime}</span>
                         </div>
                         
                         <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
@@ -514,7 +514,7 @@ export function CommuteManager() {
                           <Bell className="h-3 w-3" />
                           <span>
                             {route.notificationsEnabled 
-                              ? `Alert ${route.alertMinutesBefore}min before`
+                              ? 'Smart alerts enabled'
                               : 'No alerts'
                             }
                           </span>
@@ -528,14 +528,6 @@ export function CommuteManager() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowDepartures(route)}
-                        title="View departure times"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
                       <Button
                         variant="outline"
                         size="sm"
@@ -562,15 +554,7 @@ export function CommuteManager() {
         )}
       </div>
 
-      {/* Departure Times Modal */}
-      {showDepartures && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <DepartureTimes 
-            route={showDepartures} 
-            onClose={() => setShowDepartures(null)} 
-          />
-        </div>
-      )}
+
     </div>
   );
 }
