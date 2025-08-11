@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
+import { registerJourneyRoutes } from "./routes/journeyRoutes";
 import { commuteMonitoringService } from "./services/commuteMonitoringService";
 import { transitService } from "./services/transitService";
 import { compensationService } from "./services/compensationService";
@@ -704,6 +705,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error in background compensation detection:", error);
     }
   }, 60000); // Run every minute
+
+  // Journey planning routes
+  registerJourneyRoutes(app);
 
   return httpServer;
 }

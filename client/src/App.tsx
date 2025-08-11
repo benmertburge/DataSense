@@ -8,7 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import Home from "@/pages/home";
-import JourneyPlanner from "@/pages/journey-planner";
+import JourneyPlanner from "@/pages/JourneyPlanner";
 import Compensation from "@/pages/compensation";
 import Commute from "@/pages/commute";
 import { SLFormSimulator } from "@/components/compensation/sl-form-simulator";
