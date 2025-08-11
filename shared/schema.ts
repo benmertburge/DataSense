@@ -90,7 +90,9 @@ export const commuteRoutes = pgTable("commute_routes", {
   userId: varchar("user_id").references(() => users.id).notNull(),
   name: varchar("name").notNull(),
   originAreaId: varchar("origin_area_id").references(() => stopAreas.id).notNull(),
+  originName: varchar("origin_name"),
   destinationAreaId: varchar("destination_area_id").references(() => stopAreas.id).notNull(),
+  destinationName: varchar("destination_name"),
   departureTime: varchar("departure_time").notNull(), // HH:MM format
   // Weekday selection - true means active on that day
   monday: boolean("monday").default(false),

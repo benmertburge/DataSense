@@ -12,6 +12,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { StationSearch } from '@/components/ui/station-search';
 import { 
   Plus, 
   Train, 
@@ -30,8 +31,8 @@ import type { CommuteRoute } from '@shared/schema';
 
 interface CommuteRouteForm {
   name: string;
-  originAreaId: string;
-  destinationAreaId: string;
+  origin: { id: string; name: string } | null;
+  destination: { id: string; name: string } | null;
   departureTime: string;
   monday: boolean;
   tuesday: boolean;
@@ -54,8 +55,8 @@ export function CommuteManager() {
   const [editingRoute, setEditingRoute] = useState<CommuteRoute | null>(null);
   const [formData, setFormData] = useState<CommuteRouteForm>({
     name: '',
-    originAreaId: '',
-    destinationAreaId: '',
+    origin: null,
+    destination: null,
     departureTime: '',
     monday: false,
     tuesday: false,
@@ -91,7 +92,26 @@ export function CommuteManager() {
   // Create commute route mutation
   const createRouteMutation = useMutation({
     mutationFn: async (data: CommuteRouteForm) => {
-      const response = await apiRequest('POST', '/api/commute/routes', data);
+      // Transform form data to match API expectations
+      const apiData = {
+        name: data.name,
+        originAreaId: data.origin?.id || '',
+        originName: data.origin?.name || '',
+        destinationAreaId: data.destination?.id || '',
+        destinationName: data.destination?.name || '',
+        departureTime: data.departureTime,
+        monday: data.monday,
+        tuesday: data.tuesday,
+        wednesday: data.wednesday,
+        thursday: data.thursday,
+        friday: data.friday,
+        saturday: data.saturday,
+        sunday: data.sunday,
+        notificationsEnabled: data.notificationsEnabled,
+        alertMinutesBefore: data.alertMinutesBefore,
+        delayThresholdMinutes: data.delayThresholdMinutes,
+      };
+      const response = await apiRequest('POST', '/api/commute/routes', apiData);
       return response.json();
     },
     onSuccess: () => {
@@ -195,8 +215,8 @@ export function CommuteManager() {
   const resetForm = () => {
     setFormData({
       name: '',
-      originAreaId: '',
-      destinationAreaId: '',
+      origin: null,
+      destination: null,
       departureTime: '',
       monday: false,
       tuesday: false,
@@ -225,8 +245,8 @@ export function CommuteManager() {
     setEditingRoute(route);
     setFormData({
       name: route.name,
-      originAreaId: route.originAreaId,
-      destinationAreaId: route.destinationAreaId,
+      origin: { id: route.originAreaId, name: route.originName || route.originAreaId },
+      destination: { id: route.destinationAreaId, name: route.destinationName || route.destinationAreaId },
       departureTime: route.departureTime,
       monday: route.monday,
       tuesday: route.tuesday,
@@ -330,28 +350,22 @@ export function CommuteManager() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="origin">From</Label>
-                  <Input
-                    id="origin"
-                    placeholder="Origin station (e.g., 1002 for Stockholm Central)"
-                    value={formData.originAreaId}
-                    onChange={(e) => setFormData({ ...formData, originAreaId: e.target.value })}
-                    required
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Use station ID (numeric)</p>
-                </div>
-                <div>
-                  <Label htmlFor="destination">To</Label>
-                  <Input
-                    id="destination"
-                    placeholder="Destination station (e.g., 9001 for Södermalm)"
-                    value={formData.destinationAreaId}
-                    onChange={(e) => setFormData({ ...formData, destinationAreaId: e.target.value })}
-                    required
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Use station ID (numeric)</p>
-                </div>
+                <StationSearch
+                  label="From"
+                  placeholder="Stockholm Central"
+                  value={formData.origin}
+                  onChange={(station) => setFormData({ ...formData, origin: station })}
+                  required
+                  indicatorColor="bg-green-500"
+                />
+                <StationSearch
+                  label="To"
+                  placeholder="Arlanda Airport"
+                  value={formData.destination}
+                  onChange={(station) => setFormData({ ...formData, destination: station })}
+                  required
+                  indicatorColor="bg-red-500"
+                />
               </div>
 
               <Separator />
@@ -527,7 +541,7 @@ export function CommuteManager() {
                         <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
                           <MapPin className="h-4 w-4" />
                           <span className="text-sm">
-                            {route.originAreaId} → {route.destinationAreaId}
+                            {route.originName || route.originAreaId} → {route.destinationName || route.destinationAreaId}
                           </span>
                         </div>
                         
