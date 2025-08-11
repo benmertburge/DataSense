@@ -498,9 +498,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`DEPARTURE OPTIONS: Current server time: ${new Date().toISOString()}`);
       console.log(`DEPARTURE OPTIONS: Search time created: ${stockholmDateTime.toISOString()}`);
       
-      // Use ResRobot Timetables API for departure options - much better for this use case!
-      const journeys = await transitService.getDepartureOptions(fromId, toId, stockholmDateTime);
-      console.log(`DEPARTURE OPTIONS: Found ${journeys.length} timetable departures from real API`);
+      // Use ResRobot Trip API - this actually works and finds real connections!
+      const journeys = await transitService.searchTrips(fromId, toId, stockholmDateTime, true);
+      console.log(`DEPARTURE OPTIONS: Found ${journeys.length} real journey connections from API`);
 
       // Format ALL departure options - return all 20 with SAME format as main page
       const options = journeys.map(journey => ({
