@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { StationSearch } from '@/components/ui/station-search';
-import { DepartureTimes } from './departure-times';
+import DepartureTimeSelect from './departure-time-select';
 import { 
   Plus, 
   Train, 
@@ -44,7 +44,7 @@ interface CommuteRouteForm {
   saturday: boolean;
   sunday: boolean;
   notificationsEnabled: boolean;
-  alertMinutesBefore: number;
+
 }
 
 export function CommuteManager() {
@@ -68,7 +68,6 @@ export function CommuteManager() {
     saturday: false,
     sunday: false,
     notificationsEnabled: true,
-    alertMinutesBefore: 15,
   });
 
   // Fetch commute routes
@@ -96,7 +95,7 @@ export function CommuteManager() {
         saturday: data.saturday,
         sunday: data.sunday,
         notificationsEnabled: data.notificationsEnabled,
-        alertMinutesBefore: data.alertMinutesBefore,
+
       };
       const response = await apiRequest('POST', '/api/commute/routes', apiData);
       return response.json();
@@ -213,7 +212,7 @@ export function CommuteManager() {
       saturday: false,
       sunday: false,
       notificationsEnabled: true,
-      alertMinutesBefore: 15,
+
     });
   };
 
@@ -401,45 +400,17 @@ export function CommuteManager() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="alertBefore">Alert before departure</Label>
-                    <Select
-                      value={formData.alertMinutesBefore.toString()}
-                      onValueChange={(value) => 
-                        setFormData({ ...formData, alertMinutesBefore: parseInt(value) })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="5">5 minutes</SelectItem>
-                        <SelectItem value="10">10 minutes</SelectItem>
-                        <SelectItem value="15">15 minutes</SelectItem>
-                        <SelectItem value="20">20 minutes</SelectItem>
-                        <SelectItem value="30">30 minutes</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-gray-500 mt-1">
-                      System will monitor for delays every minute between alert time and departure
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="departureTime">Time to Leave</Label>
-                    <Input
-                      id="departureTime"
-                      type="time"
-                      value={formData.departureTime}
-                      onChange={(e) => setFormData({ ...formData, departureTime: e.target.value })}
-                      required
-                      className="bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      System will show 20 journey options starting from this time using real API data
-                    </p>
-                  </div>
+                <div>
+                  <Label htmlFor="departureTime">Time to Leave</Label>
+                  <DepartureTimeSelect
+                    origin={formData.origin}
+                    destination={formData.destination}
+                    value={formData.departureTime}
+                    onChange={(time) => setFormData({ ...formData, departureTime: time })}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Choose from 20 real departure times fetched from Swedish transport API
+                  </p>
                 </div>
               </div>
 

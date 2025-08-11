@@ -477,6 +477,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Commute Routes
+  // Get departure options for dropdown selection
+  app.get('/api/commute/departure-options/:fromId/:toId/:baseTime', isAuthenticated, async (req, res) => {
+    try {
+      const { fromId, toId, baseTime } = req.params;
+      
+      if (!fromId || !toId || !baseTime) {
+        return res.status(400).json({ message: 'Missing required parameters' });
+      }
+
+      // Get current date and combine with baseTime
+      const today = new Date().toISOString().split('T')[0];
+      
+      console.log(`DEPARTURE OPTIONS: Getting options from ${fromId} to ${toId} starting at ${baseTime}`);
+      
+      // Use existing transit service to get journey options
+      const journeys = await transitService.searchTrips(fromId, toId, today, baseTime, false);
+
+      // Format for dropdown - limit to 20 options
+      const options = journeys.slice(0, 20).map(journey => ({
+        id: journey.id,
+        plannedDeparture: journey.plannedDeparture,
+        plannedArrival: journey.plannedArrival,
+        duration: journey.durationMinutes || 0,
+        legs: journey.legs.map(leg => ({
+          kind: leg.kind,
+          line: leg.line?.number || leg.line?.name || 'Unknown',
+          from: { name: leg.from.name },
+          to: { name: leg.to.name }
+        }))
+      }));
+
+      console.log(`DEPARTURE OPTIONS SUCCESS: Found ${options.length} departure options`);
+      res.json(options);
+    } catch (error) {
+      console.error('Error fetching departure options:', error);
+      res.status(500).json({ message: 'Failed to fetch departure options' });
+    }
+  });
+
   app.get("/api/commute/routes", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
