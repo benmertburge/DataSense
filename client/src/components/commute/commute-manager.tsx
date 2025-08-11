@@ -427,7 +427,7 @@ export function CommuteManager() {
                   </div>
                   
                   <div>
-                    <Label htmlFor="departureTime">Preferred departure time</Label>
+                    <Label htmlFor="departureTime">Time to Leave</Label>
                     <Input
                       id="departureTime"
                       type="time"
@@ -437,7 +437,7 @@ export function CommuteManager() {
                       className="bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
                     />
                     <p className="text-xs text-gray-500 mt-1">
-                      System will show all departures around this time
+                      System will show 20 journey options starting from this time using real API data
                     </p>
                   </div>
                 </div>
