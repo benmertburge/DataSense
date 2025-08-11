@@ -8,6 +8,80 @@ export class TransitService {
   private readonly RESROBOT_API_BASE = 'https://api.resrobot.se/v2.1';
   private readonly TRAFIKLAB_REALTIME_API = 'https://realtime-api.trafiklab.se/v1';
   
+  // NEW: Method to get departure timetables from specific station
+  async getDepartureOptions(stationId: string, destinationId: string, dateTime: Date): Promise<any[]> {
+    const apiKey = process.env.RESROBOT_API_KEY?.trim();
+    if (!apiKey) {
+      throw new Error("RESROBOT_API_KEY environment variable is required");
+    }
+
+    const params = new URLSearchParams({
+      id: stationId,
+      format: 'json',
+      accessId: apiKey,
+      date: dateTime.toISOString().slice(0, 10), // YYYY-MM-DD
+      time: dateTime.toTimeString().slice(0, 5), // HH:MM
+      duration: '180', // 3 hours of departures
+      maxJourneys: '20' // Up to 20 departures
+    });
+
+    const url = `${this.RESROBOT_API_BASE}/departureBoard?${params}`;
+    console.log(`TIMETABLE API: ${url.replace(apiKey, 'API_KEY_HIDDEN')}`);
+
+    const response = await fetch(url);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`ResRobot Timetables API failed: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    
+    if (data.errorCode) {
+      throw new Error(`ResRobot Timetables error: ${data.errorCode} - ${data.errorText}`);
+    }
+
+    if (!data.Departure || !Array.isArray(data.Departure)) {
+      return []; // No departures found
+    }
+
+    console.log(`TIMETABLE SUCCESS: Found ${data.Departure.length} departures from station ${stationId}`);
+    
+    // Filter departures that go towards the destination
+    const relevantDepartures = data.Departure.filter((dep: any) => {
+      // Check if any stop in the route matches the destination
+      if (dep.Stops?.Stop && Array.isArray(dep.Stops.Stop)) {
+        return dep.Stops.Stop.some((stop: any) => stop.id === destinationId);
+      }
+      return false;
+    });
+
+    console.log(`FILTERED: ${relevantDepartures.length} departures go towards destination ${destinationId}`);
+    
+    // Convert to simplified format
+    return relevantDepartures.slice(0, 20).map((dep: any, index: number) => {
+      const departureDateTime = `${dep.date}T${dep.time}:00`;
+      
+      // Find the destination stop to get arrival time
+      const destinationStop = dep.Stops?.Stop?.find((stop: any) => stop.id === destinationId);
+      const arrivalDateTime = destinationStop ? 
+        `${destinationStop.arrDate}T${destinationStop.arrTime}:00` : 
+        departureDateTime;
+
+      return {
+        id: `timetable-${index}`,
+        plannedDeparture: departureDateTime,
+        plannedArrival: arrivalDateTime,
+        duration: Math.round((new Date(arrivalDateTime).getTime() - new Date(departureDateTime).getTime()) / 60000),
+        legs: [{
+          kind: 'TRANSIT',
+          line: dep.transportNumber || dep.Product?.num || 'Unknown',
+          from: { name: dep.stop },
+          to: { name: destinationStop?.name || 'Destination' }
+        }]
+      };
+    });
+  }
+  
   // ResRobot transport product codes (bitmask values)
   private readonly PRODUCT_CODES = {
     2: 'Express train',     // Bit 1
