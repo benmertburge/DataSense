@@ -36,7 +36,7 @@ export default function DepartureTimeSelect({ origin, destination, value, onChan
     const minutes = now.getMinutes() >= 30 ? 60 : 30;
     now.setMinutes(minutes, 0, 0);
     return now.toTimeString().slice(0, 5); // HH:MM format
-  });
+  })();
 
   // Fetch departure options when origin and destination are selected
   const { data: departureOptions = [], isLoading } = useQuery({
