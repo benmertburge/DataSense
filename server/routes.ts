@@ -477,7 +477,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Commute Routes
-  // Get departure options for dropdown selection
+  // Get departure options for dropdown selection - USES EXACT SAME LOGIC AS MAIN JOURNEY PLANNER
   app.get('/api/commute/departure-options/:fromId/:toId/:baseTime', isAuthenticated, async (req, res) => {
     try {
       const { fromId, toId, baseTime } = req.params;
@@ -486,26 +486,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Missing required parameters' });
       }
 
-      // Get current date and combine with baseTime
+      // Create Stockholm local time - EXACT SAME LOGIC AS MAIN JOURNEY PLANNER
       const today = new Date().toISOString().split('T')[0];
+      const [year, month, day] = today.split('-').map(Number);
+      const [hour, minute] = baseTime.split(':').map(Number);
       
-      console.log(`DEPARTURE OPTIONS: Getting options from ${fromId} to ${toId} starting at ${baseTime}`);
+      // Create date in Stockholm timezone using proper constructor - SAME AS MAIN PLANNER
+      const stockholmDateTime = new Date();
+      stockholmDateTime.setFullYear(year, month - 1, day); // month is 0-indexed
+      stockholmDateTime.setHours(hour, minute, 0, 0);
       
-      // Use existing transit service to get journey options
-      const journeys = await transitService.searchTrips({
-        originId: fromId,
-        destinationId: toId,
-        date: today,
-        time: baseTime,
-        searchForArrival: false
-      });
+      console.log(`DEPARTURE OPTIONS: Getting real trips from ${fromId} to ${toId} starting at ${baseTime}`);
+      console.log(`DEPARTURE OPTIONS: Created dateTime object: ${stockholmDateTime.toString()}`);
+      
+      // Use EXACT SAME transit service call as main journey planner
+      const journeys = await transitService.searchTrips(fromId, toId, stockholmDateTime, true);
 
-      // Format for dropdown - limit to 20 options
+      // Format for dropdown - limit to 20 options with SAME format as main page
       const options = journeys.slice(0, 20).map(journey => ({
         id: journey.id,
         plannedDeparture: journey.plannedDeparture,
         plannedArrival: journey.plannedArrival,
-        duration: Math.round((new Date(journey.plannedArrival).getTime() - new Date(journey.plannedDeparture).getTime()) / 60000),
+        duration: journey.duration || Math.round((new Date(journey.plannedArrival).getTime() - new Date(journey.plannedDeparture).getTime()) / 60000),
         legs: journey.legs?.map(leg => ({
           kind: leg.kind,
           line: leg.line?.number || leg.line?.name || 'Unknown',
@@ -514,7 +516,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })) || []
       }));
 
-      console.log(`DEPARTURE OPTIONS SUCCESS: Found ${options.length} departure options`);
+      console.log(`REAL API SUCCESS: Returning ${options.length} departure options`);
       res.json(options);
     } catch (error) {
       console.error('Error fetching departure options:', error);
