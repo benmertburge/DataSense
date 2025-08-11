@@ -37,6 +37,15 @@ export const users = pgTable("users", {
   notificationsEnabled: boolean("notifications_enabled").default(true),
   delayAlertsEnabled: boolean("delay_alerts_enabled").default(true),
   alertTimingMinutes: integer("alert_timing_minutes").default(15),
+  // Personal preferences
+  preferredLanguage: varchar("preferred_language").default("sv"),
+  theme: varchar("theme").default("light"),
+  pushNotifications: boolean("push_notifications").default(false),
+  emailNotifications: boolean("email_notifications").default(true),
+  smsNotifications: boolean("sms_notifications").default(false),
+  phone: varchar("phone"),
+  address: text("address"),
+  emergencyContact: varchar("emergency_contact"),
 });
 
 export const stopAreas = pgTable("stop_areas", {
@@ -147,6 +156,48 @@ export const deviations = pgTable("deviations", {
   isActive: boolean("is_active").default(true),
 });
 
+// Notification preferences and alerts
+export const userNotifications = pgTable("user_notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  title: varchar("title").notNull(),
+  message: text("message").notNull(),
+  type: varchar("type", { enum: ["delay", "cancellation", "compensation", "route_change", "maintenance"] }).notNull(),
+  severity: varchar("severity", { enum: ["low", "medium", "high", "critical"] }).default("medium"),
+  isRead: boolean("is_read").default(false),
+  routeId: varchar("route_id").references(() => savedRoutes.id),
+  journeyId: varchar("journey_id").references(() => journeys.id),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  endpoint: text("endpoint").notNull(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Service alerts and system notifications
+export const serviceAlerts = pgTable("service_alerts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: varchar("title").notNull(),
+  description: text("description").notNull(),
+  severity: varchar("severity", { enum: ["info", "warning", "disruption", "maintenance"] }).notNull(),
+  affectedLines: text("affected_lines").array(),
+  affectedStops: text("affected_stops").array(),
+  startTime: timestamp("start_time"),
+  endTime: timestamp("end_time"),
+  isActive: boolean("is_active").default(true),
+  source: varchar("source").default("SL"),
+  externalId: varchar("external_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Zod schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -170,6 +221,22 @@ export const insertCompensationCaseSchema = createInsertSchema(compensationCases
 });
 
 export const insertCommuteRouteSchema = createInsertSchema(commuteRoutes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertUserNotificationSchema = createInsertSchema(userNotifications).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertPushSubscriptionSchema = createInsertSchema(pushSubscriptions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertServiceAlertSchema = createInsertSchema(serviceAlerts).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
@@ -228,10 +295,16 @@ export type SavedRoute = typeof savedRoutes.$inferSelect;
 export type Journey = typeof journeys.$inferSelect;
 export type CompensationCase = typeof compensationCases.$inferSelect;
 export type Deviation = typeof deviations.$inferSelect;
+export type UserNotification = typeof userNotifications.$inferSelect;
+export type PushSubscription = typeof pushSubscriptions.$inferSelect;
+export type ServiceAlert = typeof serviceAlerts.$inferSelect;
 
 export type InsertSavedRoute = z.infer<typeof insertSavedRouteSchema>;
 export type InsertJourney = z.infer<typeof insertJourneySchema>;
 export type InsertCompensationCase = z.infer<typeof insertCompensationCaseSchema>;
+export type InsertUserNotification = z.infer<typeof insertUserNotificationSchema>;
+export type InsertPushSubscription = z.infer<typeof insertPushSubscriptionSchema>;
+export type InsertServiceAlert = z.infer<typeof insertServiceAlertSchema>;
 export type JourneyPlannerRequest = z.infer<typeof journeyPlannerSchema>;
 export type CompensationClaimRequest = z.infer<typeof compensationClaimSchema>;
 

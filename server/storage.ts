@@ -8,6 +8,9 @@ import {
   journeys,
   compensationCases,
   deviations,
+  userNotifications,
+  pushSubscriptions,
+  serviceAlerts,
   type User,
   type UpsertUser,
   type StopArea,
@@ -18,13 +21,19 @@ import {
   type Journey,
   type CompensationCase,
   type Deviation,
+  type UserNotification,
+  type PushSubscription,
+  type ServiceAlert,
   type InsertSavedRoute,
   type InsertCommuteRoute,
   type InsertJourney,
   type InsertCompensationCase,
+  type InsertUserNotification,
+  type InsertPushSubscription,
+  type InsertServiceAlert,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, gte, lte } from "drizzle-orm";
+import { eq, and, desc, gte, lte, sql } from "drizzle-orm";
 
 export interface IStorage {
   // User operations (required for Replit Auth)
@@ -90,6 +99,108 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  // User settings operations
+  async updateUserSettings(userId: string, updates: Partial<User>): Promise<User> {
+    const [updated] = await db
+      .update(users)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  }
+
+  // Notification operations
+  async getUserNotifications(userId: string): Promise<UserNotification[]> {
+    return await db
+      .select()
+      .from(userNotifications)
+      .where(eq(userNotifications.userId, userId))
+      .orderBy(desc(userNotifications.createdAt));
+  }
+
+  async createNotification(data: InsertUserNotification): Promise<UserNotification> {
+    const [notification] = await db
+      .insert(userNotifications)
+      .values(data)
+      .returning();
+    return notification;
+  }
+
+  async markNotificationAsRead(userId: string, notificationId: string): Promise<UserNotification | null> {
+    const [updated] = await db
+      .update(userNotifications)
+      .set({ isRead: true })
+      .where(and(
+        eq(userNotifications.id, notificationId),
+        eq(userNotifications.userId, userId)
+      ))
+      .returning();
+    return updated || null;
+  }
+
+  // Service alerts operations
+  async getActiveServiceAlerts(): Promise<ServiceAlert[]> {
+    return await db
+      .select()
+      .from(serviceAlerts)
+      .where(eq(serviceAlerts.isActive, true))
+      .orderBy(desc(serviceAlerts.createdAt));
+  }
+
+  // Push subscription operations
+  async createPushSubscription(data: InsertPushSubscription): Promise<PushSubscription> {
+    const [subscription] = await db
+      .insert(pushSubscriptions)
+      .values(data)
+      .returning();
+    return subscription;
+  }
+
+  async deletePushSubscription(userId: string, endpoint: string): Promise<boolean> {
+    const result = await db
+      .delete(pushSubscriptions)
+      .where(and(
+        eq(pushSubscriptions.userId, userId),
+        eq(pushSubscriptions.endpoint, endpoint)
+      ));
+    return result.rowCount > 0;
+  }
+
+  // Enhanced commute route operations
+  async getCommuteRoutes(userId: string): Promise<CommuteRoute[]> {
+    return await db.select().from(commuteRoutes).where(eq(commuteRoutes.userId, userId));
+  }
+
+  async updateCommuteRoute(userId: string, routeId: string, updates: Partial<CommuteRoute>): Promise<CommuteRoute | null> {
+    const [updated] = await db
+      .update(commuteRoutes)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(and(
+        eq(commuteRoutes.id, routeId),
+        eq(commuteRoutes.userId, userId)
+      ))
+      .returning();
+    return updated || null;
+  }
+
+  async deleteCommuteRoute(userId: string, routeId: string): Promise<boolean> {
+    const result = await db
+      .delete(commuteRoutes)
+      .where(and(
+        eq(commuteRoutes.id, routeId),
+        eq(commuteRoutes.userId, userId)
+      ));
+    return result.rowCount > 0;
+  }
+
+  async getUsersWithActiveJourneys(): Promise<User[]> {
+    return await db
+      .select()
+      .from(users)
+      .innerJoin(journeys, eq(users.id, journeys.userId))
+      .where(eq(journeys.status, 'active'));
+  }
+
   // Stop and line operations
   async getStopArea(id: string): Promise<StopArea | undefined> {
     const [stopArea] = await db.select().from(stopAreas).where(eq(stopAreas.id, id));
@@ -143,6 +254,7 @@ export class DatabaseStorage implements IStorage {
     return newRoute;
   }
 
+  // Legacy method kept for compatibility
   async updateCommuteRoute(id: string, updates: Partial<CommuteRoute>): Promise<CommuteRoute> {
     const [updatedRoute] = await db
       .update(commuteRoutes)

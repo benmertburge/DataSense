@@ -310,78 +310,232 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // User settings
+  // User Settings Routes
+  app.get("/api/user/settings", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      const settings = {
+        notificationsEnabled: user.notificationsEnabled,
+        delayAlertsEnabled: user.delayAlertsEnabled,
+        alertTimingMinutes: user.alertTimingMinutes,
+        preferredLanguage: user.preferredLanguage,
+        theme: user.theme,
+        pushNotifications: user.pushNotifications,
+        emailNotifications: user.emailNotifications,
+        smsNotifications: user.smsNotifications,
+        phone: user.phone,
+        address: user.address,
+        emergencyContact: user.emergencyContact,
+      };
+      
+      res.json(settings);
+    } catch (error) {
+      console.error("Error fetching user settings:", error);
+      res.status(500).json({ error: "Failed to fetch settings" });
+    }
+  });
+
   app.patch('/api/user/settings', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const { notificationsEnabled, delayAlertsEnabled, alertTimingMinutes } = req.body;
+      const updates = req.body;
       
-      // Update user settings
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
+      // Validate the updates
+      const allowedFields = [
+        'notificationsEnabled', 'delayAlertsEnabled', 'alertTimingMinutes',
+        'preferredLanguage', 'theme', 'pushNotifications', 'emailNotifications',
+        'smsNotifications', 'phone', 'address', 'emergencyContact'
+      ];
+      
+      const validUpdates = Object.keys(updates)
+        .filter(key => allowedFields.includes(key))
+        .reduce((obj, key) => {
+          obj[key] = updates[key];
+          return obj;
+        }, {} as any);
+
+      if (Object.keys(validUpdates).length === 0) {
+        return res.status(400).json({ error: "No valid fields to update" });
       }
 
-      // In a real implementation, you'd update user preferences
-      res.json({ message: "Settings updated successfully" });
+      const updatedUser = await storage.updateUserSettings(userId, validUpdates);
+      res.json({ success: true, user: updatedUser });
     } catch (error) {
       console.error("Error updating user settings:", error);
-      res.status(500).json({ message: "Failed to update settings" });
+      res.status(500).json({ error: "Failed to update settings" });
     }
   });
 
-  // Commute routes - for daily tracking with weekday selection
-  app.get('/api/commute-routes', isAuthenticated, async (req: any, res) => {
+  // Notifications Routes
+  app.get("/api/notifications", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const routes = await storage.getUserCommuteRoutes(userId);
+      const notifications = await storage.getUserNotifications(userId);
+      res.json(notifications);
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+      res.status(500).json({ error: "Failed to fetch notifications" });
+    }
+  });
+
+  app.patch("/api/notifications/:id/read", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const notificationId = req.params.id;
+      
+      const notification = await storage.markNotificationAsRead(userId, notificationId);
+      if (!notification) {
+        return res.status(404).json({ error: "Notification not found" });
+      }
+      
+      res.json(notification);
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+      res.status(500).json({ error: "Failed to update notification" });
+    }
+  });
+
+  app.post("/api/notifications/test", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Create a test notification
+      const testNotification = {
+        userId,
+        title: "Test Notification",
+        message: "This is a test notification from TransitPro. Your notification system is working correctly!",
+        type: "maintenance" as const,
+        severity: "low" as const,
+      };
+      
+      const notification = await storage.createNotification(testNotification);
+      
+      // If WebSocket is connected, send real-time notification
+      const client = clients.get(userId);
+      if (client && client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify({
+          type: 'notification',
+          data: notification
+        }));
+      }
+      
+      res.json({ success: true, notification });
+    } catch (error) {
+      console.error("Error sending test notification:", error);
+      res.status(500).json({ error: "Failed to send test notification" });
+    }
+  });
+
+  // Service Alerts Routes
+  app.get("/api/alerts", async (req, res) => {
+    try {
+      const alerts = await storage.getActiveServiceAlerts();
+      res.json(alerts);
+    } catch (error) {
+      console.error("Error fetching service alerts:", error);
+      res.status(500).json({ error: "Failed to fetch service alerts" });
+    }
+  });
+
+  // Push Subscription Routes
+  app.post("/api/push/subscribe", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { endpoint, p256dh, auth } = req.body;
+      
+      const subscription = await storage.createPushSubscription({
+        userId,
+        endpoint,
+        p256dh,
+        auth,
+      });
+      
+      res.json(subscription);
+    } catch (error) {
+      console.error("Error creating push subscription:", error);
+      res.status(500).json({ error: "Failed to create push subscription" });
+    }
+  });
+
+  app.delete("/api/push/unsubscribe", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { endpoint } = req.body;
+      
+      const deleted = await storage.deletePushSubscription(userId, endpoint);
+      res.json({ success: deleted });
+    } catch (error) {
+      console.error("Error deleting push subscription:", error);
+      res.status(500).json({ error: "Failed to delete push subscription" });
+    }
+  });
+
+  // Commute Routes
+  app.get("/api/commute/routes", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const routes = await storage.getCommuteRoutes(userId);
       res.json(routes);
     } catch (error) {
       console.error("Error fetching commute routes:", error);
-      res.status(500).json({ message: "Failed to fetch commute routes" });
+      res.status(500).json({ error: "Failed to fetch commute routes" });
     }
   });
 
-  app.post('/api/commute-routes', isAuthenticated, async (req: any, res) => {
+  app.post("/api/commute/routes", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const routeData = { ...req.body, userId };
-      
       const route = await storage.createCommuteRoute(routeData);
       res.json(route);
     } catch (error) {
       console.error("Error creating commute route:", error);
-      res.status(500).json({ message: "Failed to create commute route" });
+      res.status(500).json({ error: "Failed to create commute route" });
     }
   });
 
-  app.put('/api/commute-routes/:id', isAuthenticated, async (req: any, res) => {
+  app.put("/api/commute/routes/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const { id } = req.params;
+      const userId = req.user.claims.sub;
+      const routeId = req.params.id;
       const updates = req.body;
       
-      const route = await storage.updateCommuteRoute(id, updates);
+      const route = await storage.updateCommuteRoute(userId, routeId, updates);
+      if (!route) {
+        return res.status(404).json({ error: "Route not found" });
+      }
+      
       res.json(route);
     } catch (error) {
       console.error("Error updating commute route:", error);
-      res.status(500).json({ message: "Failed to update commute route" });
+      res.status(500).json({ error: "Failed to update commute route" });
     }
   });
 
-  app.delete('/api/commute-routes/:id', isAuthenticated, async (req: any, res) => {
+  app.delete("/api/commute/routes/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const { id } = req.params;
       const userId = req.user.claims.sub;
+      const routeId = req.params.id;
       
-      await storage.deleteCommuteRoute(id, userId);
+      const deleted = await storage.deleteCommuteRoute(userId, routeId);
+      if (!deleted) {
+        return res.status(404).json({ error: "Route not found" });
+      }
+      
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting commute route:", error);
-      res.status(500).json({ message: "Failed to delete commute route" });
+      res.status(500).json({ error: "Failed to delete commute route" });
     }
   });
 
-  app.get('/api/commute-routes/today', isAuthenticated, async (req: any, res) => {
+  // Today's commute routes
+  app.get('/api/commute/routes/today', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const today = new Date();
@@ -392,7 +546,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(routes);
     } catch (error) {
       console.error("Error fetching today's commute routes:", error);
-      res.status(500).json({ message: "Failed to fetch today's commute routes" });
+      res.status(500).json({ error: "Failed to fetch today's commute routes" });
     }
   });
 
@@ -400,7 +554,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   setInterval(async () => {
     try {
       // Get all users with active journeys
-      const users = await storage.getUsersByActiveJourneys?.() || [];
+      const users = await storage.getUsersWithActiveJourneys?.() || [];
       
       for (const user of users) {
         const detectedCases = await compensationService.processAutomaticDetection(user.id);

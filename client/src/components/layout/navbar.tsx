@@ -1,4 +1,4 @@
-import { Bell, User, Train, MapPin, FileText, Calendar } from 'lucide-react';
+import { Bell, User, Train, MapPin, FileText, Calendar, Search, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { useAuth } from '@/hooks/useAuth';
@@ -36,22 +36,29 @@ export default function Navbar() {
           <div className="flex items-center space-x-2">
             <Link href="/planner">
               <Button variant={location === "/planner" ? "default" : "ghost"} size="sm">
-                <MapPin className="h-4 w-4 mr-2" />
-                Planner
+                <Search className="h-4 w-4 mr-2" />
+                Journey Planner
               </Button>
             </Link>
             
             <Link href="/commute">
               <Button variant={location === "/commute" ? "default" : "ghost"} size="sm">
-                <Calendar className="h-4 w-4 mr-2" />
-                Commutes
+                <Train className="h-4 w-4 mr-2" />
+                Daily Commute
               </Button>
             </Link>
             
-            <Link href="/compensation">
-              <Button variant={location === "/compensation" ? "default" : "ghost"} size="sm">
-                <FileText className="h-4 w-4 mr-2" />
-                Claims
+            <Link href="/notifications">
+              <Button variant={location === "/notifications" ? "default" : "ghost"} size="sm">
+                <Bell className="h-4 w-4 mr-2" />
+                Notifications
+              </Button>
+            </Link>
+
+            <Link href="/settings">
+              <Button variant={location === "/settings" ? "default" : "ghost"} size="sm">
+                <Settings className="h-4 w-4 mr-2" />
+                Settings
               </Button>
             </Link>
           </div>
@@ -59,18 +66,22 @@ export default function Navbar() {
           <div className="flex items-center space-x-4">
             <ThemeToggle />
             
-            <Button variant="ghost" size="sm" className="relative">
-              <Bell className="h-5 w-5 text-gray-600 dark:text-gray-300" />
-              {pendingNotifications > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                  {pendingNotifications}
-                </span>
-              )}
-            </Button>
+            <Link href="/notifications">
+              <Button variant="ghost" size="sm" className="relative">
+                <Bell className="h-5 w-5 text-gray-600 dark:text-gray-300" />
+                {pendingNotifications > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    {pendingNotifications}
+                  </span>
+                )}
+              </Button>
+            </Link>
             
-            <Button variant="ghost" size="sm">
-              <User className="h-5 w-5 text-gray-600 dark:text-gray-300" />
-            </Button>
+            <Link href="/settings">
+              <Button variant="ghost" size="sm">
+                <User className="h-5 w-5 text-gray-600 dark:text-gray-300" />
+              </Button>
+            </Link>
             
             <Button 
               variant="outline" 
