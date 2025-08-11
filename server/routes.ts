@@ -444,6 +444,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Modular journey planning routes for commute page
+  app.post('/api/journey/plan', isAuthenticated, async (req: any, res) => {
+    try {
+      const { origin, destination, time, timeType = 'depart', day = 'monday' } = req.body;
+      
+      if (!origin || !destination || !time) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+
+      console.log('MODULAR JOURNEY PLAN:', { origin, destination, time, timeType, day });
+
+      // Use the existing trip search functionality
+      const trips = await transitService.searchTrips(origin, destination, time, timeType === 'arrive');
+      
+      if (!trips || trips.length === 0) {
+        return res.status(404).json({ error: 'No routes found' });
+      }
+
+      // Convert first trip to modular legs format
+      const bestTrip = trips[0];
+      const legs = bestTrip.legs.map((leg: any, index: number) => ({
+        id: `leg-${Date.now()}-${index}`,
+        from: { id: leg.Origin?.id || '', name: leg.Origin?.name || '' },
+        to: { id: leg.Destination?.id || '', name: leg.Destination?.name || '' },
+        departureTime: leg.Origin?.time,
+        arrivalTime: leg.Destination?.time,
+        duration: leg.duration || 0,
+        line: leg.Product?.line || leg.Product?.name || '',
+        isValid: true
+      }));
+
+      console.log('MODULAR JOURNEY SUCCESS:', legs.length, 'legs created');
+      res.json({ 
+        legs,
+        totalDuration: bestTrip.duration,
+        departureTime: bestTrip.departureTime,
+        arrivalTime: bestTrip.arrivalTime 
+      });
+    } catch (error) {
+      console.error('Journey planning error:', error);
+      res.status(500).json({ error: 'Journey planning failed' });
+    }
+  });
+
+  app.post('/api/journey/validate-leg', isAuthenticated, async (req: any, res) => {
+    try {
+      const { fromId, toId, time, day = 'monday' } = req.body;
+      
+      if (!fromId || !toId) {
+        return res.status(400).json({ error: 'Missing station IDs' });
+      }
+
+      console.log('VALIDATING LEG:', { fromId, toId, time, day });
+
+      // Search for direct connection between stations
+      const trips = await transitService.searchTrips(fromId, toId, time || '08:00', false);
+      
+      if (!trips || trips.length === 0) {
+        console.log('LEG VALIDATION FAILED: No connection found');
+        return res.json({
+          isValid: false,
+          validationError: 'No direct connection found between these stations'
+        });
+      }
+
+      const bestTrip = trips[0];
+      const firstLeg = bestTrip.legs[0];
+
+      console.log('LEG VALIDATION SUCCESS:', firstLeg?.Product?.line || 'Unknown line');
+      return res.json({
+        isValid: true,
+        departureTime: firstLeg?.Origin?.time || bestTrip.departureTime,
+        arrivalTime: firstLeg?.Destination?.time || bestTrip.arrivalTime,
+        duration: firstLeg?.duration || bestTrip.duration,
+        line: firstLeg?.Product?.line || firstLeg?.Product?.name || 'Unknown'
+      });
+    } catch (error) {
+      console.error('Leg validation error:', error);
+      res.json({
+        isValid: false,
+        validationError: 'Validation failed due to server error'
+      });
+    }
+  });
+
   // Push Subscription Routes
   app.post("/api/push/subscribe", isAuthenticated, async (req: any, res) => {
     try {

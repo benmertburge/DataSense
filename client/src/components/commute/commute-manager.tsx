@@ -251,10 +251,19 @@ export function CommuteManager() {
         day: formData.selectedDay
       };
 
-      const journey = await apiRequest('/api/journey/plan', {
+      const response = await fetch('/api/journey/plan', {
         method: 'POST',
-        body: journeyData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(journeyData),
       });
+      
+      if (!response.ok) {
+        throw new Error(`Journey planning failed: ${response.status}`);
+      }
+      
+      const journey = await response.json();
 
       setFormData(prev => ({
         ...prev,
@@ -312,15 +321,24 @@ export function CommuteManager() {
     if (!leg || !leg.from.id || !leg.to.id) return;
 
     try {
-      const validation = await apiRequest('/api/journey/validate-leg', {
+      const response = await fetch('/api/journey/validate-leg', {
         method: 'POST',
-        body: {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           fromId: leg.from.id,
           toId: leg.to.id,
           time: formData.departureTime,
           day: formData.selectedDay
-        },
+        }),
       });
+      
+      if (!response.ok) {
+        throw new Error(`Validation failed: ${response.status}`);
+      }
+      
+      const validation = await response.json();
 
       setFormData(prev => ({
         ...prev,
@@ -475,43 +493,46 @@ export function CommuteManager() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label>Time Type</Label>
-                  <Select 
-                    value={formData.timeType} 
-                    onValueChange={(value: 'depart' | 'arrive') => setFormData({ ...formData, timeType: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="depart">Leave at</SelectItem>
-                      <SelectItem value="arrive">Arrive by</SelectItem>
-                    </SelectContent>
-                  </Select>
+              {/* Only show time type and day selection for modular journey */}
+              {!formData.isModular && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Time Type</Label>
+                    <Select 
+                      value={formData.timeType} 
+                      onValueChange={(value: 'depart' | 'arrive') => setFormData({ ...formData, timeType: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="depart">Leave at</SelectItem>
+                        <SelectItem value="arrive">Arrive by</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Planning Day</Label>
+                    <Select 
+                      value={formData.selectedDay} 
+                      onValueChange={(value) => setFormData({ ...formData, selectedDay: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="monday">Monday</SelectItem>
+                        <SelectItem value="tuesday">Tuesday</SelectItem>
+                        <SelectItem value="wednesday">Wednesday</SelectItem>
+                        <SelectItem value="thursday">Thursday</SelectItem>
+                        <SelectItem value="friday">Friday</SelectItem>
+                        <SelectItem value="saturday">Saturday</SelectItem>
+                        <SelectItem value="sunday">Sunday</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div>
-                  <Label>Day of Week</Label>
-                  <Select 
-                    value={formData.selectedDay} 
-                    onValueChange={(value) => setFormData({ ...formData, selectedDay: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="monday">Monday</SelectItem>
-                      <SelectItem value="tuesday">Tuesday</SelectItem>
-                      <SelectItem value="wednesday">Wednesday</SelectItem>
-                      <SelectItem value="thursday">Thursday</SelectItem>
-                      <SelectItem value="friday">Friday</SelectItem>
-                      <SelectItem value="saturday">Saturday</SelectItem>
-                      <SelectItem value="sunday">Sunday</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <StationSearch
