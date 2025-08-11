@@ -486,19 +486,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Missing required parameters' });
       }
 
-      // Create Stockholm local time - EXACT SAME LOGIC AS MAIN JOURNEY PLANNER
-      const today = new Date().toISOString().split('T')[0];
-      const [year, month, day] = today.split('-').map(Number);
+      // Use the provided baseTime which comes from frontend as current time
       const [hour, minute] = baseTime.split(':').map(Number);
       
-      // Create date in Stockholm timezone using proper constructor - SAME AS MAIN PLANNER
+      // Create Stockholm time starting from NOW
       const stockholmDateTime = new Date();
-      stockholmDateTime.setFullYear(year, month - 1, day); // month is 0-indexed
       stockholmDateTime.setHours(hour, minute, 0, 0);
       
       console.log(`DEPARTURE OPTIONS: Getting real trips from ${fromId} to ${toId} starting at ${baseTime}`);
-      console.log(`DEPARTURE OPTIONS: Created dateTime object: ${stockholmDateTime.toString()}`);
-      console.log(`DEPARTURE OPTIONS: Hours/Minutes: ${stockholmDateTime.getHours()}:${stockholmDateTime.getMinutes()}`);
+      console.log(`DEPARTURE OPTIONS: Current server time: ${new Date().toISOString()}`);
+      console.log(`DEPARTURE OPTIONS: Search time created: ${stockholmDateTime.toISOString()}`);
       
       // Use EXACT SAME transit service call as main journey planner
       const journeys = await transitService.searchTrips(fromId, toId, stockholmDateTime, true);
