@@ -266,22 +266,7 @@ export function CommuteManager() {
         day: formData.selectedDay
       };
 
-      const response = await fetch('/api/journey/plan', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(journeyData),
-        credentials: 'include'
-      });
-      
-      console.log('JOURNEY API RESPONSE STATUS:', response.status);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('JOURNEY API ERROR:', errorText);
-        throw new Error(`Journey planning failed: ${response.status} - ${errorText}`);
-      }
+      const response = await apiRequest('POST', '/api/journey/plan', journeyData);
       
       const journey = await response.json();
       console.log('JOURNEY API SUCCESS:', journey);
@@ -347,24 +332,12 @@ export function CommuteManager() {
     if (!leg || !leg.from.id || !leg.to.id) return;
 
     try {
-      const response = await fetch('/api/journey/validate-leg', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fromId: leg.from.id,
-          toId: leg.to.id,
-          time: formData.departureTime,
-          day: formData.selectedDay
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Validation failed: ${response.status}`);
-      }
-      
-      const validation = await response.json();
+      const validation = await apiRequest('POST', '/api/journey/validate-leg', {
+        fromId: leg.from.id,
+        toId: leg.to.id,
+        time: formData.departureTime,
+        day: formData.selectedDay
+      }).then(res => res.json());
 
       setFormData(prev => ({
         ...prev,
