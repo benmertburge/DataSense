@@ -93,7 +93,7 @@ export const commuteRoutes = pgTable("commute_routes", {
   originName: varchar("origin_name"),
   destinationAreaId: varchar("destination_area_id").references(() => stopAreas.id).notNull(),
   destinationName: varchar("destination_name"),
-  departureTime: varchar("departure_time").notNull(), // HH:MM format
+  departureTime: varchar("departure_time").notNull(), // HH:MM format - preferred leave time
   // Weekday selection - true means active on that day
   monday: boolean("monday").default(false),
   tuesday: boolean("tuesday").default(false),
@@ -106,6 +106,47 @@ export const commuteRoutes = pgTable("commute_routes", {
   notificationsEnabled: boolean("notifications_enabled").default(true),
   alertMinutesBefore: integer("alert_minutes_before").default(15),
   isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Track active commute journeys with multiple legs
+export const commuteJourneys = pgTable("commute_journeys", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  routeId: varchar("route_id").references(() => commuteRoutes.id).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  date: timestamp("date").notNull(),
+  itineraryId: varchar("itinerary_id").notNull(), // From transit API
+  status: varchar("status").notNull().default("monitoring"), // monitoring, departed, completed, disrupted
+  totalDelayMinutes: integer("total_delay_minutes").default(0),
+  missedConnections: boolean("missed_connections").default(false),
+  alternativeItineraryId: varchar("alternative_itinerary_id"), // If rerouted due to delays
+  originalArrivalTime: timestamp("original_arrival_time").notNull(),
+  expectedArrivalTime: timestamp("expected_arrival_time"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Track individual legs of a commute journey for detailed monitoring
+export const commuteLegs = pgTable("commute_legs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  journeyId: varchar("journey_id").references(() => commuteJourneys.id).notNull(),
+  legIndex: integer("leg_index").notNull(), // Order in the journey
+  lineNumber: varchar("line_number").notNull(),
+  fromStationId: varchar("from_station_id").notNull(),
+  fromStationName: varchar("from_station_name").notNull(),
+  toStationId: varchar("to_station_id").notNull(),
+  toStationName: varchar("to_station_name").notNull(),
+  plannedDeparture: timestamp("planned_departure").notNull(),
+  plannedArrival: timestamp("planned_arrival").notNull(),
+  expectedDeparture: timestamp("expected_departure"),
+  expectedArrival: timestamp("expected_arrival"),
+  actualDeparture: timestamp("actual_departure"),
+  actualArrival: timestamp("actual_arrival"),
+  delayMinutes: integer("delay_minutes").default(0),
+  cancelled: boolean("cancelled").default(false),
+  platform: varchar("platform"),
+  status: varchar("status").default("scheduled"), // scheduled, boarding, departed, arrived, cancelled
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -227,6 +268,18 @@ export const insertCommuteRouteSchema = createInsertSchema(commuteRoutes).omit({
   updatedAt: true,
 });
 
+export const insertCommuteJourneySchema = createInsertSchema(commuteJourneys).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCommuteLegSchema = createInsertSchema(commuteLegs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertUserNotificationSchema = createInsertSchema(userNotifications).omit({
   id: true,
   createdAt: true,
@@ -248,6 +301,10 @@ export type User = typeof users.$inferSelect;
 export type UpsertUser = typeof users.$inferInsert;
 export type CommuteRoute = typeof commuteRoutes.$inferSelect;
 export type InsertCommuteRoute = z.infer<typeof insertCommuteRouteSchema>;
+export type CommuteJourney = typeof commuteJourneys.$inferSelect;
+export type InsertCommuteJourney = z.infer<typeof insertCommuteJourneySchema>;
+export type CommuteLeg = typeof commuteLegs.$inferSelect;
+export type InsertCommuteLeg = z.infer<typeof insertCommuteLegSchema>;
 
 export const journeyPlannerSchema = z.object({
   from: z.union([

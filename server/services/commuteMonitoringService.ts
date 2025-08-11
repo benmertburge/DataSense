@@ -82,22 +82,26 @@ export class CommuteMonitoringService {
     try {
       const monitoringKey = `${route.userId}_${route.id}`;
       
-      // Get real-time departures for this route
-      const departures = await transitService.getStationDepartures(route.originAreaId, now);
+      // Get the current best journey option for this route
+      const bestJourney = await this.getBestJourneyOption(route, now);
       
-      // Find departures around the user's preferred time
-      const relevantDepartures = this.findRelevantDepartures(departures, route.departureTime);
-      
-      if (relevantDepartures.length > 0) {
-        const currentDelay = this.calculateMaxDelay(relevantDepartures);
+      if (bestJourney) {
         const lastMonitoring = this.activeMonitorings.get(monitoringKey);
         
-        // Check if delay status has changed
-        if (!lastMonitoring || lastMonitoring.lastDelayStatus !== currentDelay) {
-          if (currentDelay > 0) {
-            await this.sendDelayAlert(route, currentDelay, relevantDepartures);
-          } else if (lastMonitoring?.lastDelayStatus && lastMonitoring.lastDelayStatus > 0 && currentDelay === 0) {
+        // Check if delay status has changed significantly
+        const delayChanged = !lastMonitoring || 
+          Math.abs((lastMonitoring.lastDelayStatus || 0) - bestJourney.totalDelay) >= 5; // 5+ minute change
+        
+        if (delayChanged) {
+          if (bestJourney.totalDelay > 0 || bestJourney.hasCancellations) {
+            await this.sendJourneyDelayAlert(route, bestJourney);
+          } else if (lastMonitoring?.lastDelayStatus && lastMonitoring.lastDelayStatus > 0) {
             await this.sendDelayResolvedAlert(route);
+          }
+
+          // Check for missed connections and alternative routes
+          if (bestJourney.totalDelay > 15 || bestJourney.hasCancellations) {
+            await this.checkForAlternativeRoutes(route, bestJourney, now);
           }
 
           // Update monitoring status
@@ -108,12 +112,115 @@ export class CommuteMonitoringService {
             alertTime: new Date(departureTime.getTime() - (route.alertMinutesBefore || 15) * 60000),
             departureTime,
             lastChecked: now,
-            lastDelayStatus: currentDelay
+            lastDelayStatus: bestJourney.totalDelay
           });
         }
       }
     } catch (error) {
       console.error(`Error monitoring route ${route.id}:`, error);
+    }
+  }
+
+  private async getBestJourneyOption(route: CommuteRoute, now: Date): Promise<any | null> {
+    try {
+      // Get real-time journey from the same API endpoint
+      const [hours, minutes] = route.departureTime.split(':').map(Number);
+      const preferredDateTime = new Date(now);
+      preferredDateTime.setHours(hours, minutes, 0, 0);
+      
+      // If we're past preferred time, search for next available departure
+      if (now > preferredDateTime) {
+        preferredDateTime.setTime(now.getTime() + 5 * 60000); // 5 minutes from now
+      }
+      
+      const itineraries = await transitService.searchTrips(
+        route.originAreaId, 
+        route.destinationAreaId, 
+        preferredDateTime, 
+        true
+      );
+      
+      if (itineraries.length > 0) {
+        const bestItinerary = itineraries[0];
+        
+        // Calculate total delay and check for cancellations
+        let totalDelay = 0;
+        let hasCancellations = false;
+        let missedConnections = false;
+        
+        for (const leg of bestItinerary.legs) {
+          if (leg.kind === 'TRANSIT') {
+            const delay = leg.expectedDeparture && leg.plannedDeparture
+              ? Math.round((new Date(leg.expectedDeparture).getTime() - new Date(leg.plannedDeparture).getTime()) / 60000)
+              : 0;
+            totalDelay += Math.max(0, delay);
+            if (leg.cancelled) hasCancellations = true;
+          }
+        }
+        
+        // Check for missed connections (if delay > 10 minutes on multi-leg journey)
+        if (bestItinerary.legs.filter(leg => leg.kind === 'TRANSIT').length > 1 && totalDelay > 10) {
+          missedConnections = true;
+        }
+        
+        return {
+          ...bestItinerary,
+          totalDelay,
+          hasCancellations,
+          missedConnections
+        };
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error getting best journey option:', error);
+      return null;
+    }
+  }
+
+  private async checkForAlternativeRoutes(route: CommuteRoute, currentJourney: any, now: Date) {
+    try {
+      // Search for alternative routes departing in the next 30 minutes
+      const alternatives = [];
+      
+      for (let i = 1; i <= 6; i++) { // Check every 5 minutes for next 30 minutes
+        const searchTime = new Date(now.getTime() + (i * 5 * 60000));
+        
+        try {
+          const altItineraries = await transitService.searchTrips(
+            route.originAreaId, 
+            route.destinationAreaId, 
+            searchTime, 
+            true
+          );
+          
+          if (altItineraries.length > 0) {
+            const altItinerary = altItineraries[0];
+            
+            // Calculate if this alternative is significantly better
+            const altDelay = altItinerary.delayMinutes || 0;
+            const timeDifferenceMinutes = Math.round((new Date(altItinerary.plannedArrival).getTime() - new Date(currentJourney.plannedArrival).getTime()) / 60000);
+            const totalTimeDifference = timeDifferenceMinutes + altDelay - currentJourney.totalDelay;
+            
+            if (totalTimeDifference < currentJourney.totalDelay && totalTimeDifference < 30) {
+              alternatives.push({
+                ...altItinerary,
+                timeSaved: currentJourney.totalDelay - totalTimeDifference,
+                newArrivalTime: new Date(altItinerary.plannedArrival).getTime() + (altDelay * 60000)
+              });
+            }
+          }
+        } catch (altError) {
+          console.error(`Error searching alternative at ${searchTime}:`, altError);
+        }
+      }
+      
+      if (alternatives.length > 0) {
+        const bestAlternative = alternatives.sort((a, b) => b.timeSaved - a.timeSaved)[0];
+        await this.sendAlternativeRouteAlert(route, currentJourney, bestAlternative);
+      }
+    } catch (error) {
+      console.error('Error checking alternative routes:', error);
     }
   }
 
@@ -161,21 +268,49 @@ export class CommuteMonitoringService {
     });
   }
 
-  private async sendDelayAlert(route: CommuteRoute, delayMinutes: number, departures: any[]) {
-    console.log(`Sending delay alert for route ${route.name}: ${delayMinutes} minutes delay`);
+  private async sendJourneyDelayAlert(route: CommuteRoute, journey: any) {
+    console.log(`Sending journey delay alert for route ${route.name}: ${journey.totalDelay} minutes delay`);
     
-    const affectedLines = departures
-      .filter(dep => dep.delay && dep.delay > 0)
-      .map(dep => dep.line?.number || 'Unknown')
-      .filter((line, index, arr) => arr.indexOf(line) === index)
+    const transitLegs = journey.legs.filter((leg: any) => leg.kind === 'TRANSIT');
+    const affectedLines = transitLegs
+      .filter((leg: any) => leg.delay && leg.delay > 0)
+      .map((leg: any) => leg.line?.number || 'Unknown')
+      .filter((line: string, index: number, arr: string[]) => arr.indexOf(line) === index)
       .join(', ');
 
+    let message = `${journey.totalDelay} minute delay on your journey`;
+    if (affectedLines) {
+      message += ` (${affectedLines})`;
+    }
+    if (journey.hasCancellations) {
+      message += '. Some services cancelled.';
+    }
+    if (journey.missedConnections) {
+      message += '. You may miss connections.';
+    }
+
     await this.sendNotification(route.userId, {
-      type: 'delay',
-      title: `${route.name} - Delay Alert`,
-      message: `${delayMinutes} minute delay on ${affectedLines}. Monitor for updates.`,
+      type: 'journey_delay',
+      title: `${route.name} - Journey Delayed`,
+      message,
       routeId: route.id,
-      severity: delayMinutes > 10 ? 'high' : 'medium'
+      severity: journey.totalDelay > 15 || journey.hasCancellations ? 'high' : 'medium'
+    });
+  }
+
+  private async sendAlternativeRouteAlert(route: CommuteRoute, currentJourney: any, alternative: any) {
+    console.log(`Sending alternative route alert for route ${route.name}`);
+    
+    const currentArrival = new Date(currentJourney.plannedArrival).getTime() + (currentJourney.totalDelay * 60000);
+    const altArrival = alternative.newArrivalTime;
+    const timeSaved = Math.round((currentArrival - altArrival) / 60000);
+    
+    await this.sendNotification(route.userId, {
+      type: 'alternative_route',
+      title: `${route.name} - Better Route Available`,
+      message: `Alternative route arriving ${timeSaved} minutes earlier. Departs ${new Date(alternative.plannedDeparture).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}.`,
+      routeId: route.id,
+      severity: 'medium'
     });
   }
 

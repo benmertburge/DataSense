@@ -551,29 +551,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get real-time departures for a commute route
-  app.get('/api/commute/departures/:stationId/:day', isAuthenticated, async (req: any, res) => {
+  // Get journey options for a commute route (20 departures after preferred time)
+  app.get('/api/commute/journeys/:fromId/:toId/:departureTime', isAuthenticated, async (req: any, res) => {
     try {
-      const { stationId, day } = req.params;
+      const { fromId, toId, departureTime } = req.params;
       
-      // Get real-time departures from Trafiklab
-      const departures = await transitService.getStationDepartures(stationId);
+      // Parse departure time and get current date
+      const today = new Date();
+      const [hours, minutes] = departureTime.split(':').map(Number);
+      const preferredDateTime = new Date(today);
+      preferredDateTime.setHours(hours, minutes, 0, 0);
       
-      // Format departures for frontend
-      const formattedDepartures = departures.map((dep: any) => ({
-        time: dep.plannedTime,
-        realTime: dep.expectedTime || dep.plannedTime,
-        platform: dep.platform,
-        line: dep.line?.number || 'Unknown',
-        destination: dep.directionText,
-        delay: dep.expectedTime ? Math.round((new Date(dep.expectedTime).getTime() - new Date(dep.plannedTime).getTime()) / 60000) : 0,
-        cancelled: dep.state === 'CANCELLED' || false
-      }));
+      // Get 20 journey options starting from preferred departure time
+      const journeyOptions = [];
+      
+      for (let i = 0; i < 20; i++) {
+        const searchDateTime = new Date(preferredDateTime.getTime() + (i * 5 * 60000)); // Every 5 minutes
+        
+        try {
+          const itineraries = await transitService.searchTrips(fromId, toId, searchDateTime, true);
+          
+          if (itineraries.length > 0) {
+            const bestItinerary = itineraries[0]; // Take the first (usually best) option
+            
+            // Calculate total delay and check for cancellations
+            let totalDelay = 0;
+            let hasCancellations = false;
+            
+            const formattedLegs = bestItinerary.legs.map((leg: any) => {
+              if (leg.kind === 'TRANSIT') {
+                const delay = leg.expectedDeparture && leg.plannedDeparture
+                  ? Math.round((new Date(leg.expectedDeparture).getTime() - new Date(leg.plannedDeparture).getTime()) / 60000)
+                  : 0;
+                totalDelay += Math.max(0, delay);
+                if (leg.cancelled) hasCancellations = true;
+                
+                return {
+                  kind: leg.kind,
+                  line: leg.line?.number || 'Unknown',
+                  from: { 
+                    name: leg.from.name, 
+                    platform: leg.from.platform 
+                  },
+                  to: { 
+                    name: leg.to.name, 
+                    platform: leg.to.platform 
+                  },
+                  plannedDeparture: leg.plannedDeparture,
+                  plannedArrival: leg.plannedArrival,
+                  expectedDeparture: leg.expectedDeparture,
+                  expectedArrival: leg.expectedArrival,
+                  delay,
+                  cancelled: leg.cancelled || false,
+                  mode: leg.line?.mode
+                };
+              }
+              return leg;
+            });
+            
+            journeyOptions.push({
+              id: bestItinerary.id,
+              legs: formattedLegs,
+              plannedDeparture: bestItinerary.plannedDeparture,
+              plannedArrival: bestItinerary.plannedArrival,
+              expectedDeparture: bestItinerary.actualDeparture || bestItinerary.plannedDeparture,
+              expectedArrival: bestItinerary.actualArrival || bestItinerary.plannedArrival,
+              duration: bestItinerary.duration,
+              totalDelay,
+              hasCancellations
+            });
+          }
+        } catch (searchError) {
+          console.error(`Error searching trips for time ${searchDateTime.toISOString()}:`, searchError);
+          // Continue with next time slot
+        }
+      }
 
-      res.json(formattedDepartures);
+      res.json(journeyOptions);
     } catch (error) {
-      console.error("Error fetching departures:", error);
-      res.status(500).json({ error: "Failed to fetch departures" });
+      console.error("Error fetching journey options:", error);
+      res.status(500).json({ error: "Failed to fetch journey options" });
     }
   });
 
