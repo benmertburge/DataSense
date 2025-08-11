@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import Navbar from '@/components/layout/navbar';
-import { CommuteManager } from '@/components/commute/commute-manager';
+import { SimpleCommuteForm } from '@/components/commute/simple-commute-form';
 
 export default function Commute() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -32,7 +32,7 @@ export default function Commute() {
       <Navbar />
       
       <div className="max-w-6xl mx-auto p-4">
-        <CommuteManager />
+        <SimpleCommuteForm />
       </div>
     </div>
   );
