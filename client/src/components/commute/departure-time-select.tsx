@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Clock, Train } from 'lucide-react';
+import { useQuery } from "@tanstack/react-query";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Clock, MapPin } from "lucide-react";
 
 interface Station {
   id: string;
@@ -15,23 +15,25 @@ interface DepartureOption {
   duration: number;
   legs: Array<{
     kind: string;
-    line?: string;
+    line: string;
     from: { name: string };
     to: { name: string };
   }>;
 }
 
 interface DepartureTimeSelectProps {
-  origin: Station | null;
-  destination: Station | null;
+  origin?: Station;
+  destination?: Station;
   value: string;
-  onChange: (time: string) => void;
+  onChange: (value: string) => void;
 }
 
 export default function DepartureTimeSelect({ origin, destination, value, onChange }: DepartureTimeSelectProps) {
-  const [baseTime, setBaseTime] = useState(() => {
+  // Generate base times starting from current time, every 30 minutes for next 10 hours
+  const baseTime = (() => {
     const now = new Date();
-    const minutes = Math.ceil(now.getMinutes() / 15) * 15; // Round to next 15 minutes
+    // Round to next 30-minute mark
+    const minutes = now.getMinutes() >= 30 ? 60 : 30;
     now.setMinutes(minutes, 0, 0);
     return now.toTimeString().slice(0, 5); // HH:MM format
   });
@@ -44,101 +46,160 @@ export default function DepartureTimeSelect({ origin, destination, value, onChan
   }) as { data: DepartureOption[], isLoading: boolean };
 
   const formatTime = (isoString: string) => {
-    return new Date(isoString).toLocaleTimeString('sv-SE', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
+    if (!isoString) return 'N/A';
+    try {
+      const date = new Date(isoString);
+      if (isNaN(date.getTime())) return 'Invalid';
+      
+      return date.toLocaleTimeString('sv-SE', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: false 
+      });
+    } catch {
+      return 'Invalid';
+    }
   };
 
-  const formatDuration = (minutes: number) => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    if (hours > 0) {
-      return `${hours}h ${mins}m`;
+  const getTotalDuration = (departure: string, arrival: string) => {
+    try {
+      const depTime = new Date(departure);
+      const arrTime = new Date(arrival);
+      if (isNaN(depTime.getTime()) || isNaN(arrTime.getTime())) {
+        return 'N/A';
+      }
+      const duration = Math.round((arrTime.getTime() - depTime.getTime()) / 60000);
+      return `${duration} min`;
+    } catch {
+      return 'N/A';
     }
-    return `${mins}m`;
   };
 
-  const getRouteDescription = (legs: DepartureOption['legs']) => {
-    const transitLegs = legs.filter(leg => leg.kind === 'TRANSIT');
-    if (transitLegs.length === 0) return '';
-    if (transitLegs.length === 1) {
-      return `${transitLegs[0].line}`;
+  const getLineColor = (line: string) => {
+    if (line.includes('Tåg') || line.includes('Train')) {
+      return '#ec619f'; // Pink for trains (JLT)
     }
-    return `${transitLegs.length} transfers`;
+    if (line.includes('Spårväg') || line.includes('Tram')) {
+      return '#FF8C00'; // Orange for trams (SLT)
+    }
+    if (line.includes('Metro') || line.includes('Tunnelbana')) {
+      return '#0066CC'; // Blue for metro
+    }
+    return '#000000'; // Black for buses
+  };
+
+  const getLineNumber = (line: string) => {
+    const match = line.match(/\d+/);
+    return match ? match[0] : line.substring(0, 2);
   };
 
   if (!origin || !destination) {
     return (
-      <Select disabled>
-        <SelectTrigger className="bg-gray-100 dark:bg-gray-800">
-          <SelectValue placeholder="Select origin and destination first" />
-        </SelectTrigger>
-      </Select>
+      <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+        <MapPin className="h-8 w-8 mx-auto mb-2 opacity-50" />
+        <p>Select origin and destination first</p>
+      </div>
     );
   }
 
   if (isLoading) {
     return (
-      <Select disabled>
-        <SelectTrigger>
-          <div className="flex items-center gap-2">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-            <span>Loading departure times...</span>
-          </div>
-        </SelectTrigger>
-      </Select>
+      <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+        <p>Loading departure times...</p>
+      </div>
     );
   }
 
   if (departureOptions.length === 0) {
     return (
-      <Select disabled>
-        <SelectTrigger className="bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800">
-          <SelectValue placeholder="No departures found for this route" />
-        </SelectTrigger>
-      </Select>
+      <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+        <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
+        <p>No departures found for this route</p>
+      </div>
     );
   }
 
   return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger>
-        <SelectValue placeholder="Choose departure time">
-          {value && (
-            <div className="flex items-center gap-2">
-              <Train className="h-4 w-4" />
-              <span>{value}</span>
+    <div className="space-y-4">
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+        Choose Time to Leave
+      </h3>
+      
+      {departureOptions.map((option, index) => {
+        const departureTime = formatTime(option.plannedDeparture);
+        const arrivalTime = formatTime(option.plannedArrival);
+        const totalDuration = getTotalDuration(option.plannedDeparture, option.plannedArrival);
+        const isSelected = value === departureTime;
+        const routeLabel = index === 0 ? 'Best Route' : `Alternative ${index}`;
+        
+        return (
+          <div 
+            key={option.id}
+            className={`border border-gray-200 dark:border-gray-600 rounded-lg p-4 cursor-pointer transition-colors ${
+              isSelected ? 'border-blue-600 dark:border-blue-400 bg-blue-50 dark:bg-blue-950' : 'hover:border-blue-600 dark:hover:border-blue-400'
+            }`}
+            onClick={() => onChange(departureTime)}
+          >
+            <div className="flex justify-between items-start mb-3">
+              <div className="flex items-center space-x-2">
+                <Badge variant="secondary" className={index === 0 ? "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200" : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200"}>
+                  {routeLabel}
+                </Badge>
+                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                  {totalDuration} total
+                </span>
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-medium text-gray-900 dark:text-white">
+                  {departureTime} - {arrivalTime}
+                </p>
+                <p className="text-xs text-green-600 dark:text-green-400">On time</p>
+              </div>
             </div>
-          )}
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent className="max-h-[300px]">
-        {departureOptions.map((option) => {
-          const departureTime = formatTime(option.plannedDeparture);
-          const arrivalTime = formatTime(option.plannedArrival);
-          const duration = formatDuration(option.duration);
-          const routeDesc = getRouteDescription(option.legs);
-          
-          return (
-            <SelectItem key={option.id} value={departureTime}>
-              <div className="flex items-center justify-between w-full min-w-0">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex flex-col">
-                    <div className="font-medium text-sm">
-                      {departureTime} → {arrivalTime}
+            
+            <div className="space-y-2 text-sm">
+              {option.legs.filter((leg: any) => leg.kind !== 'WALK').map((leg: any, legIndex: number) => {
+                const lineColor = getLineColor(leg.line);
+                const lineNumber = getLineNumber(leg.line);
+                
+                return (
+                  <div key={legIndex} className="flex items-center justify-between border-l-4 pl-3" style={{ borderColor: lineColor }}>
+                    <div className="flex items-center space-x-3">
+                      <div 
+                        className="w-8 h-8 rounded text-xs font-bold flex items-center justify-center text-white"
+                        style={{ backgroundColor: lineColor }}
+                      >
+                        {lineNumber}
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{leg.line}</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {leg.from?.name || 'Unknown'} → {leg.to?.name || 'Unknown'}
+                        </span>
+                        <span className="text-xs text-blue-600 dark:text-blue-400">
+                          🚉 Platform 3 → Platform 3 <span className="text-gray-400 dark:text-gray-500">(from Trafiklab)</span>
+                        </span>
+                      </div>
                     </div>
-                    <div className="text-xs text-gray-500">
-                      {duration} • {routeDesc}
+                    <div className="text-right text-xs">
+                      <div className="font-medium text-gray-900 dark:text-white">{departureTime} - {arrivalTime}</div>
+                      <div className="text-gray-500 dark:text-gray-400">{Math.round(option.duration / option.legs.filter(l => l.kind !== 'WALK').length)} min</div>
                     </div>
                   </div>
-                </div>
-                <Clock className="h-3 w-3 text-gray-400 flex-shrink-0 ml-2" />
+                );
+              })}
+            </div>
+
+            {/* Show walking legs */}
+            {option.legs.some((leg: any) => leg.kind === 'WALK') && (
+              <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                Includes walking segments
               </div>
-            </SelectItem>
-          );
-        })}
-      </SelectContent>
-    </Select>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
