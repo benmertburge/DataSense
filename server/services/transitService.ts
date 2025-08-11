@@ -76,13 +76,21 @@ export class TransitService {
     if (relevantDepartures.length === 0) {
       console.log(`NO DIRECT MATCHES: Showing all ${Math.min(data.Departure.length, 10)} departures from station`);
       return data.Departure.slice(0, 10).map((dep: any, index: number) => {
-        const departureDateTime = `${dep.date}T${dep.time}:00`;
+        // Fix time format - ResRobot returns "HH:MM:SS" but we need ISO format
+        const departureTime = dep.time.slice(0, 5); // Convert "HH:MM:SS" to "HH:MM"
+        const departureDateTime = `${dep.date}T${departureTime}:00`;
+        
+        // Estimate arrival time (add 30 minutes as placeholder)
+        const arrivalTime = new Date(departureDateTime);
+        arrivalTime.setMinutes(arrivalTime.getMinutes() + 30);
+        
+        console.log(`DEPARTURE: Line ${dep.transportNumber} at ${departureTime} going to ${dep.direction}`);
         
         return {
           id: `timetable-${index}`,
           plannedDeparture: departureDateTime,
-          plannedArrival: departureDateTime, // Same as departure since we don't know the route
-          duration: 0,
+          plannedArrival: arrivalTime.toISOString(),
+          duration: 30, // Estimated duration
           legs: [{
             kind: 'TRANSIT',
             line: dep.transportNumber || dep.Product?.num || 'Unknown',
@@ -95,13 +103,23 @@ export class TransitService {
     
     // Convert to simplified format
     return relevantDepartures.slice(0, 20).map((dep: any, index: number) => {
-      const departureDateTime = `${dep.date}T${dep.time}:00`;
+      // Fix time format - ResRobot returns "HH:MM:SS" but we need ISO format
+      const departureTime = dep.time.slice(0, 5); // Convert "HH:MM:SS" to "HH:MM"
+      const departureDateTime = `${dep.date}T${departureTime}:00`;
       
       // Find the destination stop to get arrival time
       const destinationStop = dep.Stops?.Stop?.find((stop: any) => stop.id === destinationId);
-      const arrivalDateTime = destinationStop ? 
-        `${destinationStop.arrDate}T${destinationStop.arrTime}:00` : 
-        departureDateTime;
+      let arrivalDateTime;
+      
+      if (destinationStop && destinationStop.arrTime) {
+        const arrivalTime = destinationStop.arrTime.slice(0, 5);
+        arrivalDateTime = `${destinationStop.arrDate}T${arrivalTime}:00`;
+      } else {
+        // Estimate arrival (add 30 minutes)
+        const arrivalTime = new Date(departureDateTime);
+        arrivalTime.setMinutes(arrivalTime.getMinutes() + 30);
+        arrivalDateTime = arrivalTime.toISOString();
+      }
 
       return {
         id: `timetable-${index}`,
@@ -112,7 +130,7 @@ export class TransitService {
           kind: 'TRANSIT',
           line: dep.transportNumber || dep.Product?.num || 'Unknown',
           from: { name: dep.stop },
-          to: { name: destinationStop?.name || 'Destination' }
+          to: { name: destinationStop?.name || dep.direction || 'Destination' }
         }]
       };
     });
