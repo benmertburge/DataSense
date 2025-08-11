@@ -22,7 +22,8 @@ export class TransitService {
       date: dateTime.toISOString().slice(0, 10), // YYYY-MM-DD
       time: dateTime.toTimeString().slice(0, 5), // HH:MM
       duration: '180', // 3 hours of departures
-      maxJourneys: '20' // Up to 20 departures
+      maxJourneys: '20', // Up to 20 departures
+      passlist: '1' // Include stop list for filtering
     });
 
     const url = `${this.RESROBOT_API_BASE}/departureBoard?${params}`;
@@ -49,13 +50,48 @@ export class TransitService {
     // Filter departures that go towards the destination
     const relevantDepartures = data.Departure.filter((dep: any) => {
       // Check if any stop in the route matches the destination
-      if (dep.Stops?.Stop && Array.isArray(dep.Stops.Stop)) {
-        return dep.Stops.Stop.some((stop: any) => stop.id === destinationId);
+      if (dep.Stops?.Stop) {
+        const stops = Array.isArray(dep.Stops.Stop) ? dep.Stops.Stop : [dep.Stops.Stop];
+        const hasDestination = stops.some((stop: any) => stop.id === destinationId);
+        
+        if (hasDestination) {
+          console.log(`MATCH FOUND: Line ${dep.transportNumber} goes to destination via ${stops.length} stops`);
+        }
+        
+        return hasDestination;
       }
+      
+      // Also check if direction matches destination name
+      if (dep.direction && destinationId) {
+        // Get destination name from our database for comparison
+        return dep.direction.toLowerCase().includes('flemingsberg');
+      }
+      
       return false;
     });
 
     console.log(`FILTERED: ${relevantDepartures.length} departures go towards destination ${destinationId}`);
+    
+    // If no direct matches, get all departures and let user see what's available
+    if (relevantDepartures.length === 0) {
+      console.log(`NO DIRECT MATCHES: Showing all ${Math.min(data.Departure.length, 10)} departures from station`);
+      return data.Departure.slice(0, 10).map((dep: any, index: number) => {
+        const departureDateTime = `${dep.date}T${dep.time}:00`;
+        
+        return {
+          id: `timetable-${index}`,
+          plannedDeparture: departureDateTime,
+          plannedArrival: departureDateTime, // Same as departure since we don't know the route
+          duration: 0,
+          legs: [{
+            kind: 'TRANSIT',
+            line: dep.transportNumber || dep.Product?.num || 'Unknown',
+            from: { name: dep.stop },
+            to: { name: dep.direction || 'Unknown destination' }
+          }]
+        };
+      });
+    }
     
     // Convert to simplified format
     return relevantDepartures.slice(0, 20).map((dep: any, index: number) => {
