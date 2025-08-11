@@ -29,19 +29,30 @@ interface DepartureTimeSelectProps {
 }
 
 export default function DepartureTimeSelect({ origin, destination, value, onChange }: DepartureTimeSelectProps) {
-  // Use current time for departure search
-  const baseTime = (() => {
+  // Generate time options starting from current time
+  const generateTimeOptions = () => {
+    const options = [];
     const now = new Date();
-    const hours = now.getHours().toString().padStart(2, '0');
-    const minutes = now.getMinutes().toString().padStart(2, '0');
-    return `${hours}:${minutes}`;
-  })();
+    
+    for (let i = 0; i < 48; i++) { // 24 hours worth of 30-minute intervals
+      const time = new Date(now);
+      time.setMinutes(now.getMinutes() + (i * 30), 0, 0);
+      const timeString = time.toTimeString().slice(0, 5);
+      options.push(timeString);
+    }
+    return options;
+  };
 
-  // Fetch departure options when origin and destination are selected
+  const timeOptions = generateTimeOptions();
+  
+  // Use the selected time (value) or default to current time
+  const selectedTime = value || timeOptions[0];
+
+  // Fetch departure options when origin, destination and time are selected
   const { data: departureOptions = [], isLoading } = useQuery({
-    queryKey: ['/api/commute/departure-options', origin?.id, destination?.id, baseTime],
-    enabled: !!origin?.id && !!destination?.id,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    queryKey: ['/api/commute/departure-options', origin?.id, destination?.id, selectedTime],
+    enabled: !!origin?.id && !!destination?.id && !!selectedTime,
+    staleTime: 2 * 60 * 1000, // Cache for 2 minutes since times are specific
   }) as { data: DepartureOption[], isLoading: boolean };
 
   const formatTime = (isoString: string) => {
