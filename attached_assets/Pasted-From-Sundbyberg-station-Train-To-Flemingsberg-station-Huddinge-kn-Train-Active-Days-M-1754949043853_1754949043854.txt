@@ -1,0 +1,155 @@
+From
+Sundbyberg station (Train)
+To
+Flemingsberg station (Huddinge kn) (Train)
+Active Days
+
+
+Mon
+
+
+Tue
+
+
+Wed
+
+
+Thu
+
+
+Fri
+
+
+Sat
+
+
+Sun
+Notification Settings
+Enable Notifications
+Get alerted about delays and departures
+
+
+
+Time to Leave
+Choose Time to Leave
+Best Route
+150 min total
+11:11 - 13:41
+
+On time
+
+Un
+Unknown
+Sundbyberg station → Västerhaninge station (Haninge kn)
+🚉 Platform 3 → Platform 3 (from Trafiklab)
+11:11 - 13:41
+30 min
+Alternative 1
+150 min total
+11:13 - 13:43
+
+On time
+
+Un
+Unknown
+Sundbyberg torg → Blackebergs gård (Stockholm kn)
+🚉 Platform 3 → Platform 3 (from Trafiklab)
+11:13 - 13:43
+30 min
+Alternative 2
+150 min total
+11:14 - 13:44
+
+On time
+
+Un
+Unknown
+Sundbyberg station → Hallonbergen T-bana (Sundbyberg kn)
+🚉 Platform 3 → Platform 3 (from Trafiklab)
+11:14 - 13:44
+30 min
+Alternative 3
+150 min total
+11:15 - 13:45
+
+On time
+
+Un
+Unknown
+Sundbyberg torg → Solna centrum T-bana
+🚉 Platform 3 → Platform 3 (from Trafiklab)
+11:15 - 13:45
+30 min
+Alternative 4
+150 min total
+11:15 - 13:45
+
+On time
+
+Un
+Unknown
+Sundbyberg station → Hallonbergen T-bana (Sundbyberg kn)
+🚉 Platform 3 → Platform 3 (from Trafiklab)
+11:15 - 13:45
+30 min
+Alternative 5
+150 min total
+11:15 - 13:45
+
+On time
+
+Un
+Unknown
+Sundbyberg torg → Solna centrum T-bana
+🚉 Platform 3 → Platform 3 (from Trafiklab)
+11:15 - 13:45
+30 min
+Alternative 6
+150 min total
+11:16 - 13:46
+
+On time
+
+Un
+Unknown
+Sundbyberg torg → Hallonbergen T-bana (Sundbyberg kn)
+🚉 Platform 3 → Platform 3 (from Trafiklab)
+11:16 - 13:46
+30 min
+Alternative 7
+150 min total
+11:17 - 13:47
+
+On time
+
+Un
+Unknown
+Sundbyberg station → Karolinska sjukhuset norra (Solna kn)
+🚉 Platform 3 → Platform 3 (from Trafiklab)
+11:17 - 13:47
+30 min
+Alternative 8
+150 min total
+11:17 - 13:47
+
+On time
+
+Un
+Unknown
+Sundbyberg centrum T-bana → Hjulsta T-bana (Stockholm kn)
+🚉 Platform 3 → Platform 3 (from Trafiklab)
+11:17 - 13:47
+30 min
+Alternative 9
+150 min total
+11:19 - 13:49
+
+On time
+
+Un
+Unknown
+Sundbyberg centrum T-bana → Kungsträdgården T-bana (Stockholm kn)
+🚉 Platform 3 → Platform 3 (from Trafiklab)
+11:19 - 13:49
+30 min
+Choose from 20 real departure times fetched from Swedish transport API
