@@ -123,7 +123,7 @@ export function SimpleCommuteForm() {
     const stationName = station.name.toLowerCase();
     const currentLeg = legs[legIndex];
     
-    // Transport mode compatibility validation
+    // 1. Transport mode compatibility validation
     const isMetroStation = stationName.includes('t-bana') || stationName.includes('tunnelbana');
     const isCommuterStation = stationName.includes('station') && !stationName.includes('t-bana');
     const isBusStop = stationName.includes('busstation') || stationName.includes('centrum');
@@ -137,7 +137,7 @@ export function SimpleCommuteForm() {
           toast({
             title: "Transport Mode Warning",
             description: `Line ${lineNumber} is metro - consider selecting a T-bana station`,
-            variant: "default"
+            variant: "destructive"
           });
         }
       }
@@ -148,30 +148,81 @@ export function SimpleCommuteForm() {
           toast({
             title: "Transport Mode Warning", 
             description: `Line ${lineNumber} is commuter train - select a train station`,
-            variant: "default"
+            variant: "destructive"
           });
         }
       }
     }
     
-    // Geographic routing validation
-    const routingErrors = validateGeographicRouting(legs, legIndex, field, station);
-    if (routingErrors.length > 0) {
-      toast({
-        title: "Routing Warning",
-        description: routingErrors[0],
-        variant: "default"
-      });
-    }
-    
-    // Auto-suggest transfer legs between disconnected stations
+    // 2. Leg connection validation - critical for route continuity
     if (field === 'to' && legIndex < legs.length - 1) {
       const nextLeg = legs[legIndex + 1];
       if (nextLeg?.from && nextLeg.from.name !== station.name) {
-        const transferDistance = calculateStationDistance(station.name, nextLeg.from.name);
-        if (transferDistance > 0.5) { // Need walking connection
-          console.log(`Auto-suggesting transfer leg: ${station.name} → ${nextLeg.from.name}`);
-        }
+        toast({
+          title: "Route Connection Error",
+          description: `Leg ${legIndex + 1} ends at "${station.name}" but leg ${legIndex + 2} starts at "${nextLeg.from.name}". Routes must connect!`,
+          variant: "destructive"
+        });
+      }
+    }
+    
+    if (field === 'from' && legIndex > 0) {
+      const prevLeg = legs[legIndex - 1];
+      if (prevLeg?.to && prevLeg.to.name !== station.name) {
+        toast({
+          title: "Route Connection Error",
+          description: `Leg ${legIndex} ends at "${prevLeg.to.name}" but leg ${legIndex + 1} starts at "${station.name}". Routes must connect!`,
+          variant: "destructive"
+        });
+      }
+    }
+    
+    // 3. Circular/backtracking route detection
+    const allStationNames = legs.map(leg => [leg.from?.name, leg.to?.name]).flat().filter(Boolean);
+    const duplicateStations = allStationNames.filter((name, index) => 
+      allStationNames.indexOf(name) !== index
+    );
+    
+    if (duplicateStations.length > 0) {
+      toast({
+        title: "Circular Route Warning",
+        description: `Route revisits stations: ${duplicateStations.join(', ')}. This creates inefficient routing.`,
+        variant: "destructive"
+      });
+    }
+    
+    // 4. Geographic routing validation
+    const routingErrors = validateGeographicRouting(legs, legIndex, field, station);
+    if (routingErrors.length > 0) {
+      toast({
+        title: "Geographic Routing Warning",
+        description: routingErrors[0],
+        variant: "destructive"
+      });
+    }
+    
+    // 5. Auto-fix disconnected legs
+    if (field === 'to' && legIndex < legs.length - 1) {
+      const nextLeg = legs[legIndex + 1];
+      if (nextLeg?.from && nextLeg.from.name !== station.name) {
+        // Auto-update next leg's start to match current leg's end
+        setTimeout(() => {
+          const newLegs = [...legs];
+          newLegs[legIndex + 1] = {
+            ...newLegs[legIndex + 1],
+            from: { 
+              name: station.name, 
+              areaId: station.id || ''
+            }
+          };
+          setFormData({
+            ...formData,
+            editedJourney: {
+              ...formData.editedJourney,
+              legs: newLegs
+            }
+          });
+        }, 100);
       }
     }
   };
@@ -243,8 +294,8 @@ export function SimpleCommuteForm() {
     return 'Transport';
   };
 
-  // Route validation indicator component
-  const RouteValidationIndicator = ({ leg }: { leg: any }) => {
+  // Enhanced route validation indicator component
+  const RouteValidationIndicator = ({ leg, legIndex, allLegs }: { leg: any, legIndex: number, allLegs: any[] }) => {
     const warnings = [];
     
     if (leg.kind === 'TRANSIT') {
@@ -252,7 +303,7 @@ export function SimpleCommuteForm() {
       const toName = leg.to?.name?.toLowerCase() || '';
       const lineNumber = String(leg.line?.number || leg.line || '');
       
-      // Check transport mode compatibility
+      // Transport mode compatibility
       if (['10', '11', '13', '14', '17', '18', '19'].includes(lineNumber)) {
         if (!toName.includes('t-bana')) warnings.push('Metro line needs T-bana station');
       }
@@ -261,15 +312,50 @@ export function SimpleCommuteForm() {
       }
     }
     
+    // Connection validation
+    if (legIndex > 0) {
+      const prevLeg = allLegs[legIndex - 1];
+      if (prevLeg?.to?.name && leg.from?.name && prevLeg.to.name !== leg.from.name) {
+        warnings.push(`Not connected to previous leg (${prevLeg.to.name} ≠ ${leg.from.name})`);
+      }
+    }
+    
+    if (legIndex < allLegs.length - 1) {
+      const nextLeg = allLegs[legIndex + 1];
+      if (nextLeg?.from?.name && leg.to?.name && leg.to.name !== nextLeg.from.name) {
+        warnings.push(`Not connected to next leg (${leg.to.name} ≠ ${nextLeg.from.name})`);
+      }
+    }
+    
+    // Circular route detection
+    const allStations = allLegs.map(l => [l.from?.name, l.to?.name]).flat().filter(Boolean);
+    const stationCounts = allStations.reduce((acc: any, station) => {
+      acc[station] = (acc[station] || 0) + 1;
+      return acc;
+    }, {});
+    
+    const repeatedStations = Object.entries(stationCounts)
+      .filter(([station, count]) => (count as number) > 1)
+      .map(([station]) => station);
+    
+    if (repeatedStations.length > 0 && 
+        (repeatedStations.includes(leg.from?.name) || repeatedStations.includes(leg.to?.name))) {
+      warnings.push(`Circular route detected (${repeatedStations.join(', ')})`);
+    }
+    
     if (warnings.length > 0) {
       return (
-        <div className="text-xs text-orange-600 dark:text-orange-400 mt-1">
-          ⚠️ {warnings[0]}
+        <div className="text-xs text-red-600 dark:text-red-400 mt-1 bg-red-50 dark:bg-red-950 px-2 py-1 rounded">
+          🚨 {warnings[0]}
         </div>
       );
     }
     
-    return null;
+    return (
+      <div className="text-xs text-green-600 dark:text-green-400 mt-1">
+        ✅ Valid connection
+      </div>
+    );
   };
 
   const resetForm = () => {
@@ -552,7 +638,7 @@ export function SimpleCommuteForm() {
                                   <div className="text-sm text-gray-600 dark:text-gray-300">
                                     {leg.from?.name} → {leg.to?.name}
                                   </div>
-                                  <RouteValidationIndicator leg={leg} />
+                                  <RouteValidationIndicator leg={leg} legIndex={index} allLegs={formData.editedJourney.legs} />
                                 </div>
                                 <div className="flex gap-2">
                                   <Button 

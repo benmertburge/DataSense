@@ -135,7 +135,7 @@ const RouteDemo = () => {
                     <div className="text-sm text-gray-600 dark:text-gray-300">
                       {leg.from?.name} → {leg.to?.name}
                     </div>
-                    <RouteValidationIndicator leg={leg} />
+                    <RouteValidationIndicator leg={leg} legIndex={index} allLegs={editedJourney.legs} />
                   </div>
                 </div>
 
