@@ -644,7 +644,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/commute/routes", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const routes = await storage.getCommuteRoutes(userId);
+      const routes = await storage.getUserCommuteRoutes(userId);
       res.json(routes);
     } catch (error) {
       console.error("Error fetching commute routes:", error);
@@ -666,15 +666,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/commute/routes/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
       const routeId = req.params.id;
       const updates = req.body;
       
-      const route = await storage.updateCommuteRoute(userId, routeId, updates);
-      if (!route) {
-        return res.status(404).json({ error: "Route not found" });
-      }
-      
+      const route = await storage.updateCommuteRoute(routeId, updates);
       res.json(route);
     } catch (error) {
       console.error("Error updating commute route:", error);
@@ -689,12 +684,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`DELETE ROUTE: User ${userId} deleting route ${routeId}`);
       
-      const deleted = await storage.deleteCommuteRoute(userId, routeId);
-      console.log(`DELETE RESULT: ${deleted ? 'Success' : 'Not found'}`);
-      
-      if (!deleted) {
-        return res.status(404).json({ error: "Route not found" });
-      }
+      await storage.deleteCommuteRoute(routeId, userId);
+      console.log(`DELETE RESULT: Success`);
       
       res.json({ success: true });
     } catch (error) {

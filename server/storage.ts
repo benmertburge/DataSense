@@ -163,48 +163,45 @@ export class DatabaseStorage implements IStorage {
         eq(pushSubscriptions.userId, userId),
         eq(pushSubscriptions.endpoint, endpoint)
       ));
-    return result.rowCount > 0;
+    return (result.rowCount || 0) > 0;
   }
 
   // Enhanced commute route operations
-  async getCommuteRoutes(userId: string): Promise<CommuteRoute[]> {
+  async getUserCommuteRoutes(userId: string): Promise<CommuteRoute[]> {
     return await db.select().from(commuteRoutes).where(eq(commuteRoutes.userId, userId));
   }
 
-  async getAllActiveCommuteRoutesForDay(day: string): Promise<CommuteRoute[]> {
-    const dayColumn = day as keyof Pick<CommuteRoute, 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'>;
+  async getActiveCommuteRoutesForDay(userId: string, dayOfWeek: string): Promise<CommuteRoute[]> {
+    const dayColumn = dayOfWeek.toLowerCase() as keyof Pick<CommuteRoute, 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'>;
     
     return await db
       .select()
       .from(commuteRoutes)
       .where(
         and(
+          eq(commuteRoutes.userId, userId),
           eq(commuteRoutes.isActive, true),
           eq(commuteRoutes[dayColumn], true)
         )
       );
   }
 
-  async updateCommuteRoute(userId: string, routeId: string, updates: Partial<CommuteRoute>): Promise<CommuteRoute | null> {
+  async updateCommuteRoute(id: string, updates: Partial<CommuteRoute>): Promise<CommuteRoute> {
     const [updated] = await db
       .update(commuteRoutes)
       .set({ ...updates, updatedAt: new Date() })
-      .where(and(
-        eq(commuteRoutes.id, routeId),
-        eq(commuteRoutes.userId, userId)
-      ))
+      .where(eq(commuteRoutes.id, id))
       .returning();
-    return updated || null;
+    return updated;
   }
 
-  async deleteCommuteRoute(userId: string, routeId: string): Promise<boolean> {
-    const result = await db
+  async deleteCommuteRoute(id: string, userId: string): Promise<void> {
+    await db
       .delete(commuteRoutes)
       .where(and(
-        eq(commuteRoutes.id, routeId),
+        eq(commuteRoutes.id, id),
         eq(commuteRoutes.userId, userId)
       ));
-    return result.rowCount > 0;
   }
 
   async getUsersWithActiveJourneys(): Promise<User[]> {
