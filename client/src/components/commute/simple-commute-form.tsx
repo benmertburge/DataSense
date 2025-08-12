@@ -135,9 +135,9 @@ export function SimpleCommuteForm() {
     mutationFn: async () => {
       const routeData = {
         name: formData.name,
-        originId: formData.origin?.id || '',
+        originAreaId: formData.origin?.id || '',
         originName: formData.origin?.name || '',
-        destinationId: formData.destination?.id || '',
+        destinationAreaId: formData.destination?.id || '',
         destinationName: formData.destination?.name || '',
         departureTime: formData.departureTime,
         timeType: formData.timeType,
