@@ -321,20 +321,28 @@ export function SimpleCommuteForm() {
       }
     }
     
-    // Circular route detection
-    const allStations = allLegs.map(l => [l.from?.name, l.to?.name]).flat().filter(Boolean);
-    const stationCounts = allStations.reduce((acc: any, station) => {
-      acc[station] = (acc[station] || 0) + 1;
-      return acc;
-    }, {});
+    // Real circular route detection - only flag actual circular patterns
+    // A transfer point like "Stockholm City" appearing as end of leg 1 and start of leg 2 is NORMAL
+    const routeStations = allLegs.map(l => l.from?.name).filter(Boolean);
+    routeStations.push(allLegs[allLegs.length - 1]?.to?.name);
+    const cleanStations = routeStations.filter(Boolean);
     
-    const repeatedStations = Object.entries(stationCounts)
-      .filter(([station, count]) => (count as number) > 1)
-      .map(([station]) => station);
+    // Only flag as circular if origin and destination are the same
+    const origin = cleanStations[0];
+    const destination = cleanStations[cleanStations.length - 1];
     
-    if (repeatedStations.length > 0 && 
-        (repeatedStations.includes(leg.from?.name) || repeatedStations.includes(leg.to?.name))) {
-      warnings.push(`Circular route detected (${repeatedStations.join(', ')})`);
+    if (origin && destination && origin === destination && cleanStations.length > 2) {
+      warnings.push(`Circular route detected (returns to ${origin})`);
+    }
+    
+    // Also check for repeated intermediate stations (not transfer points)
+    const intermediateStations = cleanStations.slice(1, -1);
+    const duplicateIntermediates = intermediateStations.filter((station, index) => 
+      intermediateStations.indexOf(station) !== index
+    );
+    
+    if (duplicateIntermediates.length > 0) {
+      warnings.push(`Route loops through ${duplicateIntermediates[0]} multiple times`);
     }
     
     if (warnings.length > 0) {
