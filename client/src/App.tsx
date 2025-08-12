@@ -14,6 +14,7 @@ import Commute from "@/pages/commute";
 import { SLFormSimulator } from "@/components/compensation/sl-form-simulator";
 import Settings from "@/pages/settings";
 import Notifications from "@/pages/notifications";
+import RouteDemo from "@/pages/route-demo";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -34,6 +35,7 @@ function Router() {
           <Route path="/sl-form-demo" component={SLFormSimulator} />
         </>
       )}
+      <Route path="/route-demo" component={RouteDemo} />
       <Route component={NotFound} />
     </Switch>
   );
