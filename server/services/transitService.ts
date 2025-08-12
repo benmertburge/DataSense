@@ -251,8 +251,26 @@ export class TransitService {
     
     if (dateTime) {
       const userTime = dateTime.getTime();
-      uniqueTrips.sort((a, b) => {
-        if (searchForArrival) {
+      
+      if (searchForArrival) {
+        // For arrival time searches, filter out trips that arrive AFTER the specified time
+        const validTrips = uniqueTrips.filter(trip => {
+          const arrivalTime = new Date(trip.plannedArrival).getTime();
+          return arrivalTime <= userTime;
+        });
+        
+        // Sort by arrival time (earliest arrival first)
+        validTrips.sort((a, b) => {
+          const arrivalA = new Date(a.plannedArrival).getTime();
+          const arrivalB = new Date(b.plannedArrival).getTime();
+          return arrivalA - arrivalB;
+        });
+        
+        console.log(`ARRIVAL TIME FILTER: ${validTrips.length}/${uniqueTrips.length} trips arrive by ${dateTime.toTimeString().slice(0,5)}`);
+        return validTrips.slice(0, 10);
+      } else {
+        // For departure time searches, sort by proximity to departure time
+        uniqueTrips.sort((a, b) => {
           // For "arrive by", sort by arrival time closest to user's time
           const aDiff = Math.abs(new Date(a.plannedArrival).getTime() - userTime);
           const bDiff = Math.abs(new Date(b.plannedArrival).getTime() - userTime);
