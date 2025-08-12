@@ -306,17 +306,21 @@ export function SimpleCommuteForm() {
       }
     }
     
-    // Connection validation
+    // Connection validation - only check if both stations are actually selected
     if (legIndex > 0) {
       const prevLeg = allLegs[legIndex - 1];
-      if (prevLeg?.to?.name && leg.from?.name && prevLeg.to.name !== leg.from.name) {
+      if (prevLeg?.to?.name && leg.from?.name && 
+          prevLeg.to.name !== 'Select station' && leg.from.name !== 'Select station' &&
+          prevLeg.to.name !== leg.from.name) {
         warnings.push(`Not connected to previous leg (${prevLeg.to.name} ≠ ${leg.from.name})`);
       }
     }
     
     if (legIndex < allLegs.length - 1) {
       const nextLeg = allLegs[legIndex + 1];
-      if (nextLeg?.from?.name && leg.to?.name && leg.to.name !== nextLeg.from.name) {
+      if (nextLeg?.from?.name && leg.to?.name && 
+          nextLeg.from.name !== 'Select station' && leg.to.name !== 'Select station' &&
+          leg.to.name !== nextLeg.from.name) {
         warnings.push(`Not connected to next leg (${leg.to.name} ≠ ${nextLeg.from.name})`);
       }
     }
