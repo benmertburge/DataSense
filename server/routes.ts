@@ -595,10 +595,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Commute Routes
-  // Get departure options for dropdown selection - USES EXACT SAME LOGIC AS MAIN JOURNEY PLANNER
-  app.get('/api/commute/departure-options/:fromId/:toId/:baseTime', isAuthenticated, async (req, res) => {
+  // Get departure options for dropdown selection - HANDLES BOTH DEPART AND ARRIVE BY
+  app.get('/api/commute/departure-options/:fromId/:toId/:baseTime/:timeType?', isAuthenticated, async (req, res) => {
     try {
-      const { fromId, toId, baseTime } = req.params;
+      const { fromId, toId, baseTime, timeType = 'depart' } = req.params;
       
       if (!fromId || !toId || !baseTime) {
         return res.status(400).json({ message: 'Missing required parameters' });
@@ -611,13 +611,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const stockholmDateTime = new Date();
       stockholmDateTime.setHours(hour, minute, 0, 0);
       
-      console.log(`DEPARTURE OPTIONS: Getting real trips from ${fromId} to ${toId} starting at ${baseTime}`);
+      console.log(`DEPARTURE OPTIONS: Getting real trips from ${fromId} to ${toId} at ${baseTime} (${timeType})`);
       console.log(`DEPARTURE OPTIONS: Current server time: ${new Date().toISOString()}`);
       console.log(`DEPARTURE OPTIONS: Search time created: ${stockholmDateTime.toISOString()}`);
       
-      // Use ResRobot Trip API - this actually works and finds real connections!
-      const journeys = await transitService.searchTrips(fromId, toId, stockholmDateTime, true);
-      console.log(`DEPARTURE OPTIONS: Found ${journeys.length} real journey connections from API`);
+      // Use ResRobot Trip API with arrival time logic for "arrive by"
+      const isArrivalTime = timeType === 'arrive';
+      const journeys = await transitService.searchTrips(fromId, toId, stockholmDateTime, !isArrivalTime, isArrivalTime);
+      console.log(`DEPARTURE OPTIONS: Found ${journeys.length} real journey connections from API (${timeType})`);
 
       // Format ALL departure options - return all 20 with SAME format as main page
       const options = journeys.map(journey => ({
@@ -633,7 +634,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })) || []
       }));
 
-      console.log(`REAL API SUCCESS: Returning ${options.length} departure options`);
+      console.log(`REAL API SUCCESS: Returning ${options.length} departure options for ${timeType}`);
       res.json(options);
     } catch (error) {
       console.error('Error fetching departure options:', error);

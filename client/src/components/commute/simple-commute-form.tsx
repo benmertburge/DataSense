@@ -68,7 +68,11 @@ export function SimpleCommuteForm() {
 
   // Fetch journey alternatives when form is complete
   const { data: journeyAlternatives = [], isLoading: loadingJourneys } = useQuery({
-    queryKey: ['/api/commute/departure-options', formData.origin?.id, formData.destination?.id, formData.departureTime],
+    queryKey: ['/api/commute/departure-options', formData.origin?.id, formData.destination?.id, formData.departureTime, formData.timeType],
+    queryFn: async () => {
+      if (!formData.origin || !formData.destination || !formData.departureTime) return [];
+      return await fetch(`/api/commute/departure-options/${formData.origin.id}/${formData.destination.id}/${formData.departureTime}/${formData.timeType}`).then(r => r.json());
+    },
     enabled: !!(formData.origin && formData.destination && formData.departureTime && showForm),
     staleTime: 2 * 60 * 1000,
   }) as { data: any[], isLoading: boolean };
@@ -345,6 +349,108 @@ export function SimpleCommuteForm() {
                     {formData.origin && formData.destination ? "No journey alternatives found" : "Complete all fields above to see journey options"}
                   </p>
                 )}
+              </div>
+            )}
+
+            {/* Custom Route Editor */}
+            {formData.selectedJourney && (
+              <div>
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <Edit className="h-5 w-5" />
+                  Custom Route Editor
+                </h3>
+                <Card className="p-4">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600 dark:text-gray-300">
+                        Customize your selected journey or keep it as is
+                      </span>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setFormData({ 
+                          ...formData, 
+                          editedJourney: formData.editedJourney ? null : { ...formData.selectedJourney }
+                        })}
+                      >
+                        {formData.editedJourney ? 'Cancel Edit' : 'Edit Journey'}
+                      </Button>
+                    </div>
+                    
+                    {formData.editedJourney ? (
+                      <div className="border-2 border-dashed border-blue-300 p-4 rounded-lg bg-blue-50 dark:bg-blue-950">
+                        <h4 className="font-medium mb-3">Custom Journey</h4>
+                        <div className="space-y-3">
+                          {formData.editedJourney.legs?.map((leg: any, index: number) => (
+                            <div key={index} className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 rounded border">
+                              <div className="flex-1">
+                                <div className="font-medium">{leg.line} {leg.kind}</div>
+                                <div className="text-sm text-gray-600 dark:text-gray-300">
+                                  {leg.from?.name} → {leg.to?.name}
+                                </div>
+                              </div>
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => {
+                                  const newLegs = [...formData.editedJourney.legs];
+                                  newLegs.splice(index, 1);
+                                  setFormData({
+                                    ...formData,
+                                    editedJourney: {
+                                      ...formData.editedJourney,
+                                      legs: newLegs
+                                    }
+                                  });
+                                }}
+                              >
+                                Remove
+                              </Button>
+                            </div>
+                          ))}
+                          <Button 
+                            variant="outline" 
+                            className="w-full"
+                            onClick={() => {
+                              // Add a placeholder leg that user can customize
+                              const newLegs = [...(formData.editedJourney.legs || [])];
+                              newLegs.push({
+                                kind: 'WALK',
+                                line: 'Walk',
+                                from: { name: 'Custom stop' },
+                                to: { name: 'Custom stop' }
+                              });
+                              setFormData({
+                                ...formData,
+                                editedJourney: {
+                                  ...formData.editedJourney,
+                                  legs: newLegs
+                                }
+                              });
+                            }}
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add Custom Leg
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <h4 className="font-medium mb-2">Selected Journey</h4>
+                        <div className="text-sm text-gray-600 dark:text-gray-300">
+                          {formatTime(formData.selectedJourney.plannedDeparture)} → {formatTime(formData.selectedJourney.plannedArrival)}
+                        </div>
+                        <div className="mt-2 flex gap-2">
+                          {formData.selectedJourney.legs?.map((leg: any, legIndex: number) => (
+                            <Badge key={legIndex} variant="secondary">
+                              {leg.line} {leg.kind}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </Card>
               </div>
             )}
 
