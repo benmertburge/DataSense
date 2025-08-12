@@ -859,7 +859,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerJourneyRoutes(app);
 
   // TEST ENDPOINT - Real route validation using working station data - DEMONSTRATES NO HARDCODING
-  app.get('/api/test/validate-connection/:fromStationId/:toStationId/:lineNumber', async (req: Request, res: Response) => {
+  app.get('/api/test/validate-connection/:fromStationId/:toStationId/:lineNumber', async (req: any, res: any) => {
     const { fromStationId, toStationId, lineNumber } = req.params;
     try {
       console.log(`REAL VALIDATION: Checking ${fromStationId} → ${toStationId} using authentic Swedish station data`);
