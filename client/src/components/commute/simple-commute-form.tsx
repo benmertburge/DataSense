@@ -116,6 +116,162 @@ export function SimpleCommuteForm() {
     }
   };
 
+  // Route validation logic for intelligent editing
+  const validateRouteLogic = (legs: any[], legIndex: number, field: 'from' | 'to', station: any) => {
+    if (!station) return;
+    
+    const stationName = station.name.toLowerCase();
+    const currentLeg = legs[legIndex];
+    
+    // Transport mode compatibility validation
+    const isMetroStation = stationName.includes('t-bana') || stationName.includes('tunnelbana');
+    const isCommuterStation = stationName.includes('station') && !stationName.includes('t-bana');
+    const isBusStop = stationName.includes('busstation') || stationName.includes('centrum');
+    
+    if (currentLeg.kind === 'TRANSIT') {
+      const lineNumber = String(currentLeg.line?.number || currentLeg.line || '');
+      
+      // Metro line validation (10, 11, 13, 14, 17, 18, 19)
+      if (['10', '11', '13', '14', '17', '18', '19'].includes(lineNumber)) {
+        if (!isMetroStation && field === 'to') {
+          toast({
+            title: "Transport Mode Warning",
+            description: `Line ${lineNumber} is metro - consider selecting a T-bana station`,
+            variant: "default"
+          });
+        }
+      }
+      
+      // Commuter train validation (40-48 series)
+      if (['40', '41', '42', '43', '44', '45', '46', '47', '48'].includes(lineNumber)) {
+        if (!isCommuterStation && field === 'to') {
+          toast({
+            title: "Transport Mode Warning", 
+            description: `Line ${lineNumber} is commuter train - select a train station`,
+            variant: "default"
+          });
+        }
+      }
+    }
+    
+    // Geographic routing validation
+    const routingErrors = validateGeographicRouting(legs, legIndex, field, station);
+    if (routingErrors.length > 0) {
+      toast({
+        title: "Routing Warning",
+        description: routingErrors[0],
+        variant: "default"
+      });
+    }
+    
+    // Auto-suggest transfer legs between disconnected stations
+    if (field === 'to' && legIndex < legs.length - 1) {
+      const nextLeg = legs[legIndex + 1];
+      if (nextLeg?.from && nextLeg.from.name !== station.name) {
+        const transferDistance = calculateStationDistance(station.name, nextLeg.from.name);
+        if (transferDistance > 0.5) { // Need walking connection
+          console.log(`Auto-suggesting transfer leg: ${station.name} → ${nextLeg.from.name}`);
+        }
+      }
+    }
+  };
+
+  const validateGeographicRouting = (legs: any[], legIndex: number, field: 'from' | 'to', station: any): string[] => {
+    const warnings: string[] = [];
+    const stationName = station.name;
+    
+    // Define geographic zones for Stockholm region
+    const centralStations = ['Stockholm City', 'T-Centralen', 'Slussen', 'Gamla Stan'];
+    const northStations = ['Sundbyberg', 'Solna', 'Märsta', 'Arlanda'];
+    const southStations = ['Tumba', 'Södertälje', 'Flemingsberg', 'Huddinge'];
+    const westStations = ['Vällingby', 'Bromma', 'Hässelby'];
+    const eastStations = ['Nacka', 'Värmdö', 'Östermalm'];
+    
+    const getZone = (name: string) => {
+      if (centralStations.some(s => name.includes(s))) return 'central';
+      if (northStations.some(s => name.includes(s))) return 'north';
+      if (southStations.some(s => name.includes(s))) return 'south';
+      if (westStations.some(s => name.includes(s))) return 'west';
+      if (eastStations.some(s => name.includes(s))) return 'east';
+      return 'unknown';
+    };
+    
+    const currentZone = getZone(stationName);
+    
+    // Check for inefficient routing (going opposite direction)
+    if (legs.length > 1) {
+      const prevStation = legIndex > 0 ? legs[legIndex - 1].to?.name : null;
+      const nextStation = legIndex < legs.length - 1 ? legs[legIndex + 1].from?.name : null;
+      
+      if (prevStation && nextStation) {
+        const prevZone = getZone(prevStation);
+        const nextZone = getZone(nextStation);
+        
+        // Detect backtracking (north → south → north pattern)
+        if ((prevZone === 'north' && currentZone === 'south' && nextZone === 'north') ||
+            (prevZone === 'south' && currentZone === 'north' && nextZone === 'south')) {
+          warnings.push(`Inefficient routing detected - consider direct connection`);
+        }
+      }
+    }
+    
+    return warnings;
+  };
+
+  const calculateStationDistance = (station1: string, station2: string): number => {
+    // Stockholm transport system distance estimation
+    const centralStations = ['Stockholm City', 'T-Centralen', 'Slussen'];
+    const suburbanStations = ['Sundbyberg', 'Tumba', 'Märsta', 'Södertälje'];
+    
+    const isCentral1 = centralStations.some(s => station1.includes(s));
+    const isCentral2 = centralStations.some(s => station2.includes(s));
+    const isSuburban1 = suburbanStations.some(s => station1.includes(s));
+    const isSuburban2 = suburbanStations.some(s => station2.includes(s));
+    
+    if (isCentral1 && isCentral2) return 0.3; // Central Stockholm stations
+    if (isSuburban1 && isSuburban2) return 20; // Far suburban connections
+    if ((isCentral1 && isSuburban2) || (isSuburban1 && isCentral2)) return 12; // Central to suburban
+    
+    return 3; // Default moderate distance
+  };
+
+  const getTransportMode = (lineNumber: string): string => {
+    const line = String(lineNumber || '');
+    if (['10', '11', '13', '14', '17', '18', '19'].includes(line)) return 'Metro';
+    if (['40', '41', '42', '43', '44', '45', '46', '47', '48'].includes(line)) return 'Train';
+    if (line.length <= 3 && !isNaN(Number(line))) return 'Bus';
+    return 'Transport';
+  };
+
+  // Route validation indicator component
+  const RouteValidationIndicator = ({ leg }: { leg: any }) => {
+    const warnings = [];
+    
+    if (leg.kind === 'TRANSIT') {
+      const fromName = leg.from?.name?.toLowerCase() || '';
+      const toName = leg.to?.name?.toLowerCase() || '';
+      const lineNumber = String(leg.line?.number || leg.line || '');
+      
+      // Check transport mode compatibility
+      if (['10', '11', '13', '14', '17', '18', '19'].includes(lineNumber)) {
+        if (!toName.includes('t-bana')) warnings.push('Metro line needs T-bana station');
+      }
+      if (['40', '41', '42', '43', '44', '45', '46', '47', '48'].includes(lineNumber)) {
+        if (!toName.includes('station')) warnings.push('Train line needs train station');
+      }
+    }
+    
+    if (warnings.length > 0) {
+      return (
+        <div className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+          ⚠️ {warnings[0]}
+        </div>
+      );
+    }
+    
+    return null;
+  };
+
   const resetForm = () => {
     setFormData({
       name: '',
@@ -385,10 +541,18 @@ export function SimpleCommuteForm() {
                             <div key={index} className="space-y-2 p-3 bg-white dark:bg-gray-800 rounded border">
                               <div className="flex items-center justify-between">
                                 <div className="flex-1">
-                                  <div className="font-medium">{leg.line} {leg.kind}</div>
+                                  <div className="font-medium flex items-center gap-2">
+                                    {leg.line?.number || leg.line} {leg.kind}
+                                    {leg.kind === 'TRANSIT' && (
+                                      <span className="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700">
+                                        {getTransportMode(leg.line?.number || leg.line)}
+                                      </span>
+                                    )}
+                                  </div>
                                   <div className="text-sm text-gray-600 dark:text-gray-300">
                                     {leg.from?.name} → {leg.to?.name}
                                   </div>
+                                  <RouteValidationIndicator leg={leg} />
                                 </div>
                                 <div className="flex gap-2">
                                   <Button 
@@ -428,6 +592,10 @@ export function SimpleCommuteForm() {
                                           name: station?.name || '' 
                                         }
                                       };
+                                      
+                                      // Auto-validate route after station change
+                                      validateRouteLogic(newLegs, index, 'from', station);
+                                      
                                       setFormData({
                                         ...formData,
                                         editedJourney: {
@@ -454,6 +622,10 @@ export function SimpleCommuteForm() {
                                           name: station?.name || '' 
                                         }
                                       };
+                                      
+                                      // Auto-validate route after station change
+                                      validateRouteLogic(newLegs, index, 'to', station);
+                                      
                                       setFormData({
                                         ...formData,
                                         editedJourney: {
