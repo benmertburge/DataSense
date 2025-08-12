@@ -271,21 +271,17 @@ export class TransitService {
       } else {
         // For departure time searches, sort by proximity to departure time
         uniqueTrips.sort((a, b) => {
-          // For "arrive by", sort by arrival time closest to user's time
-          const aDiff = Math.abs(new Date(a.plannedArrival).getTime() - userTime);
-          const bDiff = Math.abs(new Date(b.plannedArrival).getTime() - userTime);
-          return aDiff - bDiff;
-        } else {
           // For "depart at", sort by departure time closest to user's time
           const aDiff = Math.abs(new Date(a.plannedDeparture).getTime() - userTime);
           const bDiff = Math.abs(new Date(b.plannedDeparture).getTime() - userTime);
           return aDiff - bDiff;
-        }
-      });
-      console.log(`SORTED: ${uniqueTrips.length} unique trips ordered by proximity to ${searchForArrival ? 'arrival' : 'departure'} time`);
+        });
+        console.log(`SORTED: ${uniqueTrips.length} unique trips ordered by proximity to departure time`);
+        return uniqueTrips.slice(0, 20);
+      }
     }
     
-    // Return up to 20 trips
+    // Return up to 20 trips without time-based filtering
     return uniqueTrips.slice(0, 20);
   }
 

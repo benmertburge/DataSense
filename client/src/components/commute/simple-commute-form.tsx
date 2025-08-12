@@ -379,59 +379,144 @@ export function SimpleCommuteForm() {
                     
                     {formData.editedJourney ? (
                       <div className="border-2 border-dashed border-blue-300 p-4 rounded-lg bg-blue-50 dark:bg-blue-950">
-                        <h4 className="font-medium mb-3">Custom Journey</h4>
+                        <h4 className="font-medium mb-3">Custom Journey - Modify Your Route</h4>
                         <div className="space-y-3">
                           {formData.editedJourney.legs?.map((leg: any, index: number) => (
-                            <div key={index} className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 rounded border">
-                              <div className="flex-1">
-                                <div className="font-medium">{leg.line} {leg.kind}</div>
-                                <div className="text-sm text-gray-600 dark:text-gray-300">
-                                  {leg.from?.name} → {leg.to?.name}
+                            <div key={index} className="space-y-2 p-3 bg-white dark:bg-gray-800 rounded border">
+                              <div className="flex items-center justify-between">
+                                <div className="flex-1">
+                                  <div className="font-medium">{leg.line} {leg.kind}</div>
+                                  <div className="text-sm text-gray-600 dark:text-gray-300">
+                                    {leg.from?.name} → {leg.to?.name}
+                                  </div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => {
+                                      const newLegs = [...formData.editedJourney.legs];
+                                      newLegs.splice(index, 1);
+                                      setFormData({
+                                        ...formData,
+                                        editedJourney: {
+                                          ...formData.editedJourney,
+                                          legs: newLegs
+                                        }
+                                      });
+                                    }}
+                                  >
+                                    Remove
+                                  </Button>
                                 </div>
                               </div>
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => {
-                                  const newLegs = [...formData.editedJourney.legs];
-                                  newLegs.splice(index, 1);
-                                  setFormData({
-                                    ...formData,
-                                    editedJourney: {
-                                      ...formData.editedJourney,
-                                      legs: newLegs
-                                    }
-                                  });
-                                }}
-                              >
-                                Remove
-                              </Button>
+                              
+                              {/* Station modification controls */}
+                              <div className="grid grid-cols-2 gap-3 mt-2">
+                                <div>
+                                  <Label className="text-xs">From Station</Label>
+                                  <StationSearch
+                                    label=""
+                                    placeholder={leg.from?.name || 'Select station'}
+                                    value={{ id: leg.from?.areaId || '', name: leg.from?.name || '' }}
+                                    onChange={(station) => {
+                                      const newLegs = [...formData.editedJourney.legs];
+                                      newLegs[index] = {
+                                        ...newLegs[index],
+                                        from: { 
+                                          areaId: station?.id || '', 
+                                          name: station?.name || '' 
+                                        }
+                                      };
+                                      setFormData({
+                                        ...formData,
+                                        editedJourney: {
+                                          ...formData.editedJourney,
+                                          legs: newLegs
+                                        }
+                                      });
+                                    }}
+                                    className="h-8"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-xs">To Station</Label>
+                                  <StationSearch
+                                    label=""
+                                    placeholder={leg.to?.name || 'Select station'}
+                                    value={{ id: leg.to?.areaId || '', name: leg.to?.name || '' }}
+                                    onChange={(station) => {
+                                      const newLegs = [...formData.editedJourney.legs];
+                                      newLegs[index] = {
+                                        ...newLegs[index],
+                                        to: { 
+                                          areaId: station?.id || '', 
+                                          name: station?.name || '' 
+                                        }
+                                      };
+                                      setFormData({
+                                        ...formData,
+                                        editedJourney: {
+                                          ...formData.editedJourney,
+                                          legs: newLegs
+                                        }
+                                      });
+                                    }}
+                                    className="h-8"
+                                  />
+                                </div>
+                              </div>
                             </div>
                           ))}
-                          <Button 
-                            variant="outline" 
-                            className="w-full"
-                            onClick={() => {
-                              // Add a placeholder leg that user can customize
-                              const newLegs = [...(formData.editedJourney.legs || [])];
-                              newLegs.push({
-                                kind: 'WALK',
-                                line: 'Walk',
-                                from: { name: 'Custom stop' },
-                                to: { name: 'Custom stop' }
-                              });
-                              setFormData({
-                                ...formData,
-                                editedJourney: {
-                                  ...formData.editedJourney,
-                                  legs: newLegs
-                                }
-                              });
-                            }}
-                          >
-                            <Plus className="h-4 w-4 mr-2" />
-                            Add Custom Leg
-                          </Button>
+                          
+                          <div className="grid grid-cols-2 gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => {
+                                const newLegs = [...(formData.editedJourney.legs || [])];
+                                newLegs.push({
+                                  kind: 'TRANSIT',
+                                  line: { number: 'Custom', mode: 'BUS' },
+                                  from: { name: 'Select station', areaId: '' },
+                                  to: { name: 'Select station', areaId: '' }
+                                });
+                                setFormData({
+                                  ...formData,
+                                  editedJourney: {
+                                    ...formData.editedJourney,
+                                    legs: newLegs
+                                  }
+                                });
+                              }}
+                            >
+                              <Plus className="h-4 w-4 mr-1" />
+                              Add Transport
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => {
+                                const newLegs = [...(formData.editedJourney.legs || [])];
+                                newLegs.push({
+                                  kind: 'WALK',
+                                  from: { name: 'Select station', areaId: '' },
+                                  to: { name: 'Select station', areaId: '' },
+                                  durationMinutes: 5
+                                });
+                                setFormData({
+                                  ...formData,
+                                  editedJourney: {
+                                    ...formData.editedJourney,
+                                    legs: newLegs
+                                  }
+                                });
+                              }}
+                            >
+                              <Plus className="h-4 w-4 mr-1" />
+                              Add Walk
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     ) : (

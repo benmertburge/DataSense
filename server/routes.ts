@@ -617,7 +617,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Use ResRobot Trip API with arrival time logic for "arrive by"
       const isArrivalTime = timeType === 'arrive';
-      const journeys = await transitService.searchTrips(fromId, toId, stockholmDateTime, !isArrivalTime, isArrivalTime);
+      const journeys = await transitService.searchTrips(fromId, toId, stockholmDateTime, !isArrivalTime);
       console.log(`DEPARTURE OPTIONS: Found ${journeys.length} real journey connections from API (${timeType})`);
 
       // Format ALL departure options - return all 20 with SAME format as main page
