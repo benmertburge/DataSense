@@ -595,6 +595,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Commute Routes
+  // TEST ENDPOINT - bypasses auth for testing
+  app.get('/api/test/departure-options/:fromId/:toId/:baseTime/:timeType?', async (req, res) => {
+    try {
+      const { fromId, toId, baseTime, timeType = 'depart' } = req.params;
+      
+      if (!fromId || !toId || !baseTime) {
+        return res.status(400).json({ message: 'Missing required parameters' });
+      }
+
+      const [hour, minute] = baseTime.split(':').map(Number);
+      const stockholmDateTime = new Date();
+      stockholmDateTime.setHours(hour, minute, 0, 0);
+      
+      console.log(`TEST: Getting trips from ${fromId} to ${toId} at ${baseTime} (${timeType})`);
+      
+      const isArrivalTime = timeType === 'arrive';
+      const journeys = await transitService.searchTrips(fromId, toId, stockholmDateTime, !isArrivalTime);
+      console.log(`TEST: Found ${journeys.length} real journey connections (${timeType})`);
+
+      const options = journeys.map(journey => ({
+        id: journey.id,
+        plannedDeparture: journey.plannedDeparture,
+        plannedArrival: journey.plannedArrival,
+        duration: journey.duration || Math.round((new Date(journey.plannedArrival).getTime() - new Date(journey.plannedDeparture).getTime()) / 60000),
+        legs: journey.legs?.map(leg => ({
+          kind: leg.kind,
+          line: leg.line?.number || leg.line?.name || 'Unknown',
+          from: { name: leg.from?.name || 'Unknown' },
+          to: { name: leg.to?.name || 'Unknown' }
+        })) || []
+      }));
+
+      console.log(`TEST SUCCESS: Returning ${options.length} departure options for ${timeType}`);
+      res.json(options);
+    } catch (error) {
+      console.error('Test API error:', error);
+      res.status(500).json({ message: 'Failed to fetch departure options' });
+    }
+  });
+
   // Get departure options for dropdown selection - HANDLES BOTH DEPART AND ARRIVE BY
   app.get('/api/commute/departure-options/:fromId/:toId/:baseTime/:timeType?', isAuthenticated, async (req, res) => {
     try {
