@@ -220,7 +220,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
 
         // Check for compensation eligibility
-        if (updatedJourney.delayMinutes >= 20) {
+        if ((updatedJourney.delayMinutes ?? 0) >= 20) {
           const compensationCase = await compensationService.detectEligibility(userId, journey.id);
           if (compensationCase) {
             broadcastToUser(userId, {
