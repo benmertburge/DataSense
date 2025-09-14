@@ -737,7 +737,7 @@ export class TransitService {
       types.push('Bus');
     }
     
-    return [...new Set(types)];
+    return Array.from(new Set(types));
   }
   
   async getStopArea(id: string): Promise<StopArea | undefined> {
@@ -767,7 +767,8 @@ export class TransitService {
           id: loc.extId || loc.id,
           name: loc.name,
           lat: loc.lat.toString(),
-          lng: loc.lon.toString()
+          lon: loc.lon.toString(),
+          type: null
         };
       }
     } catch (error) {
@@ -814,11 +815,11 @@ export class TransitService {
         for (const item of data.stopLocationOrCoordLocation) {
           if (item.StopLocation) {
             const loc = item.StopLocation;
-            // Filter for Stockholm region
+            // Filter for Stockholm region (stricter coordinates)
             const lat = parseFloat(loc.lat);
-            const lng = parseFloat(loc.lon);
+            const lon = parseFloat(loc.lon);
             
-            if (lat >= 59.0 && lat <= 60.0 && lng >= 17.5 && lng <= 19.0) {
+            if (lat >= 59.2 && lat <= 59.5 && lon >= 17.8 && lon <= 18.3) {
               // Derive transport types from station name (ResRobot productAtStop data is unreliable)
               const transportTypes = this.getTransportTypesFromName(loc.name);
               const typeLabel = transportTypes.length > 0 ? ` (${transportTypes.join(', ')})` : '';
@@ -827,7 +828,8 @@ export class TransitService {
                 id: loc.extId || loc.id,
                 name: loc.name + typeLabel,
                 lat: loc.lat.toString(),
-                lng: loc.lon.toString()
+                lon: loc.lon.toString(),
+                type: null
               });
             }
           }
@@ -872,11 +874,11 @@ export class TransitService {
 
     // Use coordinate searches around Stockholm to discover stations
     const stockholmAreas = [
-      { name: "Stockholm City", lat: 59.3293, lng: 18.0686 },
-      { name: "Stockholm North", lat: 59.3500, lng: 18.0500 },
-      { name: "Stockholm South", lat: 59.3000, lng: 18.0800 },
-      { name: "Stockholm West", lat: 59.3300, lng: 17.9800 },
-      { name: "Stockholm East", lat: 59.3300, lng: 18.1500 }
+      { name: "Stockholm City", lat: 59.3293, lon: 18.0686 },
+      { name: "Stockholm North", lat: 59.3500, lon: 18.0500 },
+      { name: "Stockholm South", lat: 59.3000, lon: 18.0800 },
+      { name: "Stockholm West", lat: 59.3300, lon: 17.9800 },
+      { name: "Stockholm East", lat: 59.3300, lon: 18.1500 }
     ];
 
     const allStations: StopArea[] = [];
@@ -890,9 +892,9 @@ export class TransitService {
         // Use trip search with nearby coordinates to discover stations
         const params = new URLSearchParams({
           originCoordLat: area.lat.toString(),
-          originCoordLong: area.lng.toString(),
+          originCoordLong: area.lon.toString(),
           destCoordLat: (area.lat + 0.01).toString(), // Small offset to trigger search
-          destCoordLong: (area.lng + 0.01).toString(),
+          destCoordLong: (area.lon + 0.01).toString(),
           format: 'json',
           accessId: apiKey,
           numTrips: '10'
@@ -926,7 +928,8 @@ export class TransitService {
                   id: leg.Origin.extId || leg.Origin.id || `station_${allStations.length}`,
                   name: leg.Origin.name,
                   lat: leg.Origin.lat.toString(),
-                  lng: leg.Origin.lon.toString()
+                  lon: leg.Origin.lon.toString(),
+                  type: null
                 });
               }
             }
@@ -942,7 +945,8 @@ export class TransitService {
                   id: leg.Destination.extId || leg.Destination.id || `station_${allStations.length}`,
                   name: leg.Destination.name,
                   lat: leg.Destination.lat.toString(),
-                  lng: leg.Destination.lon.toString()
+                  lon: leg.Destination.lon.toString(),
+                  type: null
                 });
               }
             }
@@ -961,8 +965,8 @@ export class TransitService {
     // Filter for Stockholm region coordinates
     const stockholmStations = allStations.filter(station => {
       const lat = parseFloat(station.lat);
-      const lng = parseFloat(station.lng);
-      return lat >= 59.0 && lat <= 60.0 && lng >= 17.5 && lng <= 18.5;
+      const lon = parseFloat(station.lon);
+      return lat >= 59.2 && lat <= 59.5 && lon >= 17.8 && lon <= 18.3;
     });
 
     console.log(`REAL STATION DISCOVERY: Found ${stockholmStations.length} authentic Swedish transport stations`);
