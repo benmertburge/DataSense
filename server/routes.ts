@@ -474,40 +474,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('BEST TRIP LEGS:', JSON.stringify(bestTrip.legs, null, 2));
       
       const legs = bestTrip.legs.map((leg: any, index: number) => {
-        // Extract proper station data from ResRobot response
-        const fromStation = {
-          id: leg.Origin?.extId || leg.Origin?.id || '',
-          name: leg.Origin?.name || leg.from?.name || 'Unknown Station'
-        };
-        const toStation = {
-          id: leg.Destination?.extId || leg.Destination?.id || '',
-          name: leg.Destination?.name || leg.to?.name || 'Unknown Station'
-        };
-        
-        console.log(`LEG ${index + 1}:`, {
-          from: fromStation,
-          to: toStation,
-          line: leg.Product?.line || leg.Product?.name || leg.line || 'Unknown'
-        });
-        
-        return {
-          id: `leg-${Date.now()}-${index}`,
-          from: fromStation,
-          to: toStation,
-          departureTime: leg.Origin?.time || leg.departureTime,
-          arrivalTime: leg.Destination?.time || leg.arrivalTime,
-          duration: leg.duration || 0,
-          line: leg.Product?.line || leg.Product?.name || leg.line || 'Unknown',
-          isValid: true
-        };
+        // Type guard and proper property access based on schema
+        if (leg.kind === 'TRANSIT') {
+          const fromStation = {
+            id: leg.from?.areaId || '',
+            name: leg.from?.name || 'Unknown Station'
+          };
+          const toStation = {
+            id: leg.to?.areaId || '',
+            name: leg.to?.name || 'Unknown Station'
+          };
+          
+          console.log(`LEG ${index + 1}:`, {
+            from: fromStation,
+            to: toStation,
+            line: leg.line?.number || leg.line?.name || 'Unknown'
+          });
+          
+          return {
+            id: `leg-${Date.now()}-${index}`,
+            from: fromStation,
+            to: toStation,
+            departureTime: leg.plannedDeparture,
+            arrivalTime: leg.plannedArrival,
+            duration: Math.round((new Date(leg.plannedArrival).getTime() - new Date(leg.plannedDeparture).getTime()) / 60000),
+            line: leg.line?.number || leg.line?.name || 'Unknown',
+            isValid: true
+          };
+        } else {
+          // WalkLeg
+          return {
+            id: `leg-${Date.now()}-${index}`,
+            from: { id: leg.fromAreaId, name: 'Walk' },
+            to: { id: leg.toAreaId, name: 'Walk' },
+            departureTime: '',
+            arrivalTime: '',
+            duration: leg.durationMinutes || 0,
+            line: 'Walk',
+            isValid: true
+          };
+        }
       });
 
       console.log('MODULAR JOURNEY SUCCESS:', legs.length, 'legs created');
+      
+      // Calculate duration from plannedDeparture and plannedArrival
+      const totalDuration = Math.round((new Date(bestTrip.plannedArrival).getTime() - new Date(bestTrip.plannedDeparture).getTime()) / 60000);
+      
       res.json({ 
         legs,
-        totalDuration: bestTrip.duration,
-        departureTime: bestTrip.departureTime,
-        arrivalTime: bestTrip.arrivalTime 
+        totalDuration,
+        departureTime: bestTrip.plannedDeparture,
+        arrivalTime: bestTrip.plannedArrival 
       });
     } catch (error) {
       console.error('Journey planning error:', error);
@@ -543,14 +561,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const bestTrip = trips[0];
       const firstLeg = bestTrip.legs[0];
-
-      console.log('LEG VALIDATION SUCCESS:', firstLeg?.Product?.line || 'Unknown line');
+      const lineInfo = firstLeg?.kind === 'TRANSIT' ? (firstLeg.line?.number || firstLeg.line?.name || 'Unknown') : 'Walk';
+      
+      console.log('LEG VALIDATION SUCCESS:', lineInfo);
       return res.json({
         isValid: true,
-        departureTime: firstLeg?.Origin?.time || bestTrip.departureTime,
-        arrivalTime: firstLeg?.Destination?.time || bestTrip.arrivalTime,
-        duration: firstLeg?.duration || bestTrip.duration,
-        line: firstLeg?.Product?.line || firstLeg?.Product?.name || 'Unknown'
+        departureTime: firstLeg?.kind === 'TRANSIT' ? firstLeg.plannedDeparture : bestTrip.plannedDeparture,
+        arrivalTime: firstLeg?.kind === 'TRANSIT' ? firstLeg.plannedArrival : bestTrip.plannedArrival,
+        duration: firstLeg?.kind === 'TRANSIT' ? 
+          Math.round((new Date(firstLeg.plannedArrival).getTime() - new Date(firstLeg.plannedDeparture).getTime()) / 60000) :
+          (firstLeg?.kind === 'WALK' ? firstLeg.durationMinutes : Math.round((new Date(bestTrip.plannedArrival).getTime() - new Date(bestTrip.plannedDeparture).getTime()) / 60000)),
+        line: lineInfo
       });
     } catch (error) {
       console.error('Leg validation error:', error);
@@ -618,12 +639,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         id: journey.id,
         plannedDeparture: journey.plannedDeparture,
         plannedArrival: journey.plannedArrival,
-        duration: journey.duration || Math.round((new Date(journey.plannedArrival).getTime() - new Date(journey.plannedDeparture).getTime()) / 60000),
+        duration: Math.round((new Date(journey.plannedArrival).getTime() - new Date(journey.plannedDeparture).getTime()) / 60000),
         legs: journey.legs?.map(leg => ({
           kind: leg.kind,
-          line: leg.line?.number || leg.line?.name || 'Unknown',
-          from: { name: leg.from?.name || 'Unknown' },
-          to: { name: leg.to?.name || 'Unknown' }
+          line: leg.kind === 'TRANSIT' ? (leg.line?.number || leg.line?.name || 'Unknown') : 'Walk',
+          from: { name: leg.kind === 'TRANSIT' ? (leg.from?.name || 'Unknown') : 'Walk' },
+          to: { name: leg.kind === 'TRANSIT' ? (leg.to?.name || 'Unknown') : 'Walk' }
         })) || []
       }));
 
@@ -665,12 +686,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         id: journey.id,
         plannedDeparture: journey.plannedDeparture,
         plannedArrival: journey.plannedArrival,
-        duration: journey.duration || Math.round((new Date(journey.plannedArrival).getTime() - new Date(journey.plannedDeparture).getTime()) / 60000),
+        duration: Math.round((new Date(journey.plannedArrival).getTime() - new Date(journey.plannedDeparture).getTime()) / 60000),
         legs: journey.legs?.map(leg => ({
           kind: leg.kind,
-          line: leg.line?.number || leg.line?.name || 'Unknown',
-          from: { name: leg.from?.name || 'Unknown' },
-          to: { name: leg.to?.name || 'Unknown' }
+          line: leg.kind === 'TRANSIT' ? (leg.line?.number || leg.line?.name || 'Unknown') : 'Walk',
+          from: { name: leg.kind === 'TRANSIT' ? (leg.from?.name || 'Unknown') : 'Walk' },
+          to: { name: leg.kind === 'TRANSIT' ? (leg.to?.name || 'Unknown') : 'Walk' }
         })) || []
       }));
 
@@ -814,9 +835,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               legs: formattedLegs,
               plannedDeparture: bestItinerary.plannedDeparture,
               plannedArrival: bestItinerary.plannedArrival,
-              expectedDeparture: bestItinerary.actualDeparture || bestItinerary.plannedDeparture,
-              expectedArrival: bestItinerary.actualArrival || bestItinerary.plannedArrival,
-              duration: bestItinerary.duration,
+              expectedDeparture: bestItinerary.expectedDeparture || bestItinerary.plannedDeparture,
+              expectedArrival: bestItinerary.expectedArrival || bestItinerary.plannedArrival,
+              duration: Math.round((new Date(bestItinerary.plannedArrival).getTime() - new Date(bestItinerary.plannedDeparture).getTime()) / 60000),
               totalDelay,
               hasCancellations
             });
@@ -887,12 +908,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Basic geographic validation - reject obviously impossible routes
-      const fromLat = parseFloat(fromStation.lat);
-      const fromLng = parseFloat(fromStation.lng);
-      const toLat = parseFloat(toStation.lat);
-      const toLng = parseFloat(toStation.lng);
+      const fromLat = parseFloat(fromStation.lat || '0');
+      const fromLon = parseFloat(fromStation.lon || '0');
+      const toLat = parseFloat(toStation.lat || '0');
+      const toLon = parseFloat(toStation.lon || '0');
       
-      const distance = Math.sqrt(Math.pow(toLat - fromLat, 2) + Math.pow(toLng - fromLng, 2));
+      const distance = Math.sqrt(Math.pow(toLat - fromLat, 2) + Math.pow(toLon - fromLon, 2));
       
       // Reject routes that are the same station or unreasonably distant
       if (fromStationId === toStationId || distance < 0.001) {
@@ -936,7 +957,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Real route validation endpoints - NO HARDCODING  
-  app.get('/api/commute/validate-connection/:fromStationId/:toStationId/:lineNumber', isAuthenticated, async (req: Request, res: Response) => {
+  app.get('/api/commute/validate-connection/:fromStationId/:toStationId/:lineNumber', isAuthenticated, async (req: any, res) => {
     const { fromStationId, toStationId, lineNumber } = req.params;
     try {
       console.log(`REAL VALIDATION: Checking ${fromStationId} → ${toStationId} using authentic Swedish station data`);
@@ -974,12 +995,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Basic geographic validation for reasonable routes
-      const fromLat = parseFloat(fromStation.lat);
-      const fromLng = parseFloat(fromStation.lng);
-      const toLat = parseFloat(toStation.lat);
-      const toLng = parseFloat(toStation.lng);
+      const fromLat = parseFloat(fromStation.lat || '0');
+      const fromLon = parseFloat(fromStation.lon || '0');
+      const toLat = parseFloat(toStation.lat || '0');
+      const toLon = parseFloat(toStation.lon || '0');
       
-      const distance = Math.sqrt(Math.pow(toLat - fromLat, 2) + Math.pow(toLng - fromLng, 2));
+      const distance = Math.sqrt(Math.pow(toLat - fromLat, 2) + Math.pow(toLon - fromLon, 2));
       
       if (distance > 1.0) { // Roughly 100km+ in Sweden
         return res.json({
@@ -1011,7 +1032,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/commute/validate-routing/:fromStationId/:toStationId/:lineNumber', isAuthenticated, async (req: Request, res: Response) => {
+  app.get('/api/commute/validate-routing/:fromStationId/:toStationId/:lineNumber', isAuthenticated, async (req: any, res) => {
     const { fromStationId, toStationId, lineNumber } = req.params;
     try {
       console.log(`REAL ROUTING VALIDATION: Analyzing ${fromStationId} → ${toStationId}`);
