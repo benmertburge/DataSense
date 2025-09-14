@@ -61,6 +61,7 @@ export interface IStorage {
   
   // Journeys
   getUserJourneys(userId: string, limit?: number): Promise<Journey[]>;
+  getJourney(id: string): Promise<Journey | undefined>;
   createJourney(journey: InsertJourney): Promise<Journey>;
   updateJourney(id: string, updates: Partial<Journey>): Promise<Journey>;
   getActiveJourney(userId: string): Promise<Journey | undefined>;
@@ -297,6 +298,11 @@ export class DatabaseStorage implements IStorage {
       .where(eq(journeys.userId, userId))
       .orderBy(desc(journeys.createdAt))
       .limit(limit);
+  }
+
+  async getJourney(id: string): Promise<Journey | undefined> {
+    const [journey] = await db.select().from(journeys).where(eq(journeys.id, id));
+    return journey;
   }
 
   async createJourney(journey: InsertJourney): Promise<Journey> {

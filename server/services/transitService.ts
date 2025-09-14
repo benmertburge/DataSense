@@ -976,6 +976,143 @@ export class TransitService {
     return stockholmStations.slice(0, 20); // Limit results
   }
 
+  async updateJourneyRealtime(journeyId: string): Promise<Partial<Journey>> {
+    try {
+      // Get the journey from storage
+      const journey = await storage.getJourney(journeyId);
+      if (!journey) {
+        throw new Error(`Journey not found: ${journeyId}`);
+      }
+
+      console.log(`UPDATING JOURNEY REALTIME: ${journeyId}`);
+
+      // Extract legs from journey
+      const legs = journey.legs as any[];
+      if (!legs || !Array.isArray(legs)) {
+        console.log("No legs found in journey, returning minimal update");
+        return { delayMinutes: 0 };
+      }
+
+      let totalDelay = 0;
+      let hasRealTimeData = false;
+      
+      // Safely convert planned times to Date objects (handle both strings and Date objects)
+      const plannedDeparture = typeof journey.plannedDeparture === 'string' 
+        ? new Date(journey.plannedDeparture) 
+        : journey.plannedDeparture;
+      const plannedArrival = typeof journey.plannedArrival === 'string' 
+        ? new Date(journey.plannedArrival) 
+        : journey.plannedArrival;
+      
+      // Validate dates
+      if (!plannedDeparture || isNaN(plannedDeparture.getTime())) {
+        console.error(`Invalid plannedDeparture: ${journey.plannedDeparture}`);
+        return { delayMinutes: 0 };
+      }
+      if (!plannedArrival || isNaN(plannedArrival.getTime())) {
+        console.error(`Invalid plannedArrival: ${journey.plannedArrival}`);
+        return { delayMinutes: 0 };
+      }
+
+      let expectedDeparture = plannedDeparture;
+      let expectedArrival = plannedArrival;
+
+      // Update each transit leg with real-time data
+      for (const leg of legs) {
+        if (leg.kind === 'TRANSIT' && leg.from?.areaId) {
+          try {
+            // Safely get line number - handle both string and object types
+            let lineNumber: string | undefined;
+            if (typeof leg.line === 'string') {
+              lineNumber = leg.line;
+            } else if (leg.line && typeof leg.line === 'object' && leg.line.number) {
+              lineNumber = leg.line.number;
+            }
+            
+            if (!lineNumber) {
+              console.log(`No line number found for leg, skipping real-time update`);
+              continue;
+            }
+
+            // Normalize station ID for Trafiklab API
+            let stationId = leg.from.areaId;
+            if (typeof stationId === 'string' && stationId.includes('@')) {
+              const match = stationId.match(/L=(\d+)/);
+              stationId = match ? match[1] : stationId;
+            }
+            
+            if (!stationId) {
+              console.log(`No valid station ID found for leg, skipping real-time update`);
+              continue;
+            }
+
+            // Get real-time departures
+            const realTimeData = await this.getRealTimeDeparturesFromTrafiklab(stationId, leg.plannedDeparture);
+            const matchingDeparture = this.findMatchingDeparture(realTimeData, lineNumber, leg.plannedDeparture);
+
+            if (matchingDeparture) {
+              hasRealTimeData = true;
+              const legDelay = matchingDeparture.delay || 0;
+              totalDelay = Math.max(totalDelay, legDelay);
+              
+              console.log(`REALTIME UPDATE: Line ${lineNumber} has ${legDelay} min delay`);
+            }
+          } catch (error) {
+            console.error(`Failed to get real-time data for leg: ${error}`);
+          }
+        }
+      }
+
+      // Calculate expected times based on delay (only if we have valid delays)
+      if (totalDelay > 0 && hasRealTimeData) {
+        expectedDeparture = new Date(plannedDeparture.getTime() + totalDelay * 60000);
+        expectedArrival = new Date(plannedArrival.getTime() + totalDelay * 60000);
+      }
+
+      // Build updates object with proper validation
+      const updates: Partial<Journey> = {
+        delayMinutes: totalDelay
+      };
+      
+      // Only add expected times if they're valid and different from planned times
+      if (expectedDeparture && !isNaN(expectedDeparture.getTime())) {
+        updates.expectedDeparture = expectedDeparture;
+      }
+      if (expectedArrival && !isNaN(expectedArrival.getTime())) {
+        updates.expectedArrival = expectedArrival;
+      }
+      
+      // Don't automatically change status - let the application logic handle status updates
+      // The status should be managed by higher-level business logic, not delay detection
+
+      console.log(`JOURNEY UPDATED: ${totalDelay} min delay, real-time data: ${hasRealTimeData}`);
+      return updates;
+
+    } catch (error) {
+      console.error(`Failed to update journey realtime: ${error}`);
+      return { delayMinutes: 0 };
+    }
+  }
+
+  async getRealDepartures(stationId: string, plannedTime?: string): Promise<any[]> {
+    try {
+      console.log(`GETTING REAL DEPARTURES: Station ${stationId}`);
+      
+      // Use current time if no planned time provided
+      const timeToUse = plannedTime || new Date().toISOString();
+      
+      // Get real-time departures from Trafiklab
+      const departures = await this.getRealTimeDeparturesFromTrafiklab(stationId, timeToUse);
+      
+      console.log(`REAL DEPARTURES SUCCESS: Found ${departures.length} departures`);
+      return departures;
+      
+    } catch (error) {
+      console.error(`Failed to get real departures: ${error}`);
+      return [];
+    }
+  }
+
   // Remove all mock/fallback methods - REAL DATA ONLY
 }
 
