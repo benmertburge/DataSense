@@ -259,14 +259,16 @@ export class TransitService {
           return arrivalTime <= userTime;
         });
         
-        // Sort by arrival time (earliest arrival first)
+        console.log(`ARRIVAL TIME FILTER: ${validTrips.length}/${uniqueTrips.length} trips arrive by ${dateTime.toTimeString().slice(0,5)}`);
+        
+        // Sort by closest to target arrival time (for "arrive by" searches)
         validTrips.sort((a, b) => {
           const arrivalA = new Date(a.plannedArrival).getTime();
           const arrivalB = new Date(b.plannedArrival).getTime();
-          return arrivalA - arrivalB;
+          const diffA = Math.abs(arrivalA - userTime);
+          const diffB = Math.abs(arrivalB - userTime);
+          return diffA - diffB; // Closest to target time first
         });
-        
-        console.log(`ARRIVAL TIME FILTER: ${validTrips.length}/${uniqueTrips.length} trips arrive by ${dateTime.toTimeString().slice(0,5)}`);
         return validTrips.slice(0, 10);
       } else {
         // For departure time searches, sort by proximity to departure time

@@ -430,6 +430,45 @@ export function SimpleCommuteForm() {
     },
   });
 
+  // Handle route selection and create active journey for monitoring
+  const createActiveJourney = useMutation({
+    mutationFn: async (journey: any) => {
+      const journeyData = {
+        plannedDeparture: journey.plannedDeparture,
+        plannedArrival: journey.plannedArrival,
+        expectedDeparture: journey.plannedDeparture,
+        expectedArrival: journey.plannedArrival,
+        status: 'active',
+        delayMinutes: 0,
+        legs: journey.legs || []
+      };
+      
+      return await apiRequest('POST', '/api/journeys', journeyData);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Journey Started!",
+        description: "Your journey is now being monitored for delays and compensation.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/journeys/active'] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to start journey monitoring. Please try again.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const handleRouteSelection = (journey: any) => {
+    // Update local state to show selected journey
+    setFormData({ ...formData, selectedJourney: journey });
+    
+    // Create active journey for monitoring
+    createActiveJourney.mutate(journey);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -566,7 +605,7 @@ export function SimpleCommuteForm() {
                             ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950' 
                             : 'hover:bg-gray-50 dark:hover:bg-gray-800'
                         }`}
-                        onClick={() => setFormData({ ...formData, selectedJourney: journey })}
+                        onClick={() => handleRouteSelection(journey)}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-4">
