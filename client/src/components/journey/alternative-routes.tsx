@@ -19,10 +19,10 @@ export default function AlternativeRoutes() {
   const createActiveJourney = useMutation({
     mutationFn: async (journey: any) => {
       const journeyData = {
-        plannedDeparture: journey.plannedDeparture,
-        plannedArrival: journey.plannedArrival,
-        expectedDeparture: journey.plannedDeparture,
-        expectedArrival: journey.plannedArrival,
+        plannedDeparture: new Date(journey.plannedDeparture),
+        plannedArrival: new Date(journey.plannedArrival),
+        expectedDeparture: new Date(journey.plannedDeparture),
+        expectedArrival: new Date(journey.plannedArrival),
         status: 'active',
         delayMinutes: 0,
         legs: journey.legs || []
