@@ -1,14 +1,55 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Clock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
+import { apiRequest } from '@/lib/queryClient';
 
 export default function AlternativeRoutes() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
   const { data: tripResults } = useQuery({
     queryKey: ['trip-results'],
     enabled: true, // Enable to show cached search results
   }) as { data: any[] | undefined };
+
+  // Handle route selection and create active journey for monitoring
+  const createActiveJourney = useMutation({
+    mutationFn: async (journey: any) => {
+      const journeyData = {
+        plannedDeparture: journey.plannedDeparture,
+        plannedArrival: journey.plannedArrival,
+        expectedDeparture: journey.plannedDeparture,
+        expectedArrival: journey.plannedArrival,
+        status: 'active',
+        delayMinutes: 0,
+        legs: journey.legs || []
+      };
+      
+      return await apiRequest('POST', '/api/journeys', journeyData);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Journey Started!",
+        description: "Your journey is now being monitored for delays and compensation.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/journeys/active'] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to start journey monitoring. Please try again.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const handleRouteSelection = (journey: any) => {
+    // Create active journey for monitoring
+    createActiveJourney.mutate(journey);
+  };
 
   // Check if we have an array of routes from the API
   if (!tripResults || !Array.isArray(tripResults) || tripResults.length === 0) {
@@ -98,6 +139,8 @@ export default function AlternativeRoutes() {
           <div 
             key={route.id || index}
             className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 hover:border-blue-600 dark:hover:border-blue-400 cursor-pointer transition-colors"
+            onClick={() => handleRouteSelection(route)}
+            data-testid={`route-card-${index}`}
           >
             <div className="flex justify-between items-start mb-3">
               <div className="flex items-center space-x-2">
