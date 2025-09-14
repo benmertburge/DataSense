@@ -252,10 +252,17 @@ export const insertSavedRouteSchema = createInsertSchema(savedRoutes).omit({
   createdAt: true,
 });
 
-export const insertJourneySchema = createInsertSchema(journeys).omit({
-  id: true,
-  createdAt: true,
-});
+export const insertJourneySchema = createInsertSchema(journeys)
+  .omit({
+    id: true,
+    createdAt: true,
+  })
+  .extend({
+    plannedDeparture: z.union([z.date(), z.string().transform((str) => new Date(str))]),
+    plannedArrival: z.union([z.date(), z.string().transform((str) => new Date(str))]),
+    expectedDeparture: z.union([z.date(), z.string().transform((str) => new Date(str))]).optional(),
+    expectedArrival: z.union([z.date(), z.string().transform((str) => new Date(str))]).optional(),
+  });
 
 export const insertCompensationCaseSchema = createInsertSchema(compensationCases).omit({
   id: true,
