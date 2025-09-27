@@ -238,6 +238,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put('/api/journeys/:id/cancel', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const journeyId = req.params.id;
+      
+      // Verify journey belongs to user
+      const existingJourney = await storage.getJourneyById(journeyId);
+      if (!existingJourney || existingJourney.userId !== userId) {
+        return res.status(404).json({ message: "Journey not found" });
+      }
+      
+      // Update journey status to cancelled
+      const cancelledJourney = await storage.updateJourney(journeyId, { 
+        status: 'cancelled',
+        actualDeparture: null,
+        actualArrival: null 
+      });
+      
+      // Broadcast cancellation to user
+      broadcastToUser(userId, {
+        type: 'journey_cancelled',
+        journey: cancelledJourney
+      });
+      
+      console.log(`CANCEL JOURNEY: User ${userId} cancelled journey ${journeyId}`);
+      res.json({ success: true, journey: cancelledJourney });
+    } catch (error) {
+      console.error("Error cancelling journey:", error);
+      res.status(500).json({ message: "Failed to cancel journey" });
+    }
+  });
+
   // Compensation routes
   app.get('/api/compensation/cases', isAuthenticated, async (req: any, res) => {
     try {

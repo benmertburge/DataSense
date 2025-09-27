@@ -1,18 +1,49 @@
-import { useQuery } from '@tanstack/react-query';
-import { Clock, AlertTriangle, MoreHorizontal, Route, DollarSign } from 'lucide-react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { Clock, AlertTriangle, MoreHorizontal, Route, DollarSign, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
+import { apiRequest, queryClient } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
 
 export default function CurrentJourney() {
   const { user } = useAuth();
+  const { toast } = useToast();
 
   const { data: activeJourney, isLoading } = useQuery({
     queryKey: ['/api/journeys/active'],
     enabled: !!user,
     refetchInterval: 30000, // Refetch every 30 seconds
   });
+
+  const cancelJourneyMutation = useMutation({
+    mutationFn: (journeyId: string) => apiRequest(`/api/journeys/${journeyId}/cancel`, {
+      method: 'PUT',
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/journeys/active'] });
+      toast({
+        title: "Journey Cancelled",
+        description: "Your journey has been successfully cancelled.",
+        variant: "default"
+      });
+    },
+    onError: (error: any) => {
+      console.error('Error cancelling journey:', error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to cancel journey. Please try again.",
+        variant: "destructive"
+      });
+    },
+  });
+
+  const handleCancelJourney = () => {
+    if (activeJourney?.id) {
+      cancelJourneyMutation.mutate(activeJourney.id);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -188,16 +219,31 @@ export default function CurrentJourney() {
       {/* Action Buttons */}
       <div className="p-6 border-t border-gray-200 bg-gray-50 rounded-b-xl">
         <div className="flex space-x-3">
-          <Button className="flex-1 bg-blue-600 hover:bg-blue-700">
+          <Button 
+            className="flex-1 bg-blue-600 hover:bg-blue-700"
+            data-testid="button-view-alternatives"
+          >
             <Route className="mr-2 h-4 w-4" />
             View Alternatives
           </Button>
           {delayMinutes >= 20 && (
-            <Button className="flex-1 bg-green-600 hover:bg-green-700">
+            <Button 
+              className="flex-1 bg-green-600 hover:bg-green-700"
+              data-testid="button-request-compensation"
+            >
               <DollarSign className="mr-2 h-4 w-4" />
               Request Compensation
             </Button>
           )}
+          <Button 
+            onClick={handleCancelJourney}
+            disabled={cancelJourneyMutation.isPending}
+            className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50"
+            data-testid="button-cancel-journey"
+          >
+            <X className="mr-2 h-4 w-4" />
+            {cancelJourneyMutation.isPending ? 'Cancelling...' : 'Cancel Journey'}
+          </Button>
         </div>
       </div>
     </Card>
