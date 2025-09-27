@@ -18,9 +18,7 @@ export default function CurrentJourney() {
   });
 
   const cancelJourneyMutation = useMutation({
-    mutationFn: (journeyId: string) => apiRequest(`/api/journeys/${journeyId}/cancel`, {
-      method: 'PUT',
-    }),
+    mutationFn: (journeyId: string) => apiRequest('PUT', `/api/journeys/${journeyId}/cancel`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/journeys/active'] });
       toast({
