@@ -1,4 +1,5 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Clock, AlertTriangle, MoreHorizontal, Route, DollarSign, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,10 +7,12 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import AlternativeRoutes from './alternative-routes';
 
 export default function CurrentJourney() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [showAlternatives, setShowAlternatives] = useState(false);
 
   const { data: activeJourney, isLoading } = useQuery({
     queryKey: ['/api/journeys/active'],
@@ -113,16 +116,9 @@ export default function CurrentJourney() {
     return 'Destination';
   };
 
-  const getModeIcon = (mode: string) => {
-    switch (mode) {
-      case 'METRO': return <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">T</div>;
-      case 'TRAIN': return <div className="w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center text-xs font-bold">🚆</div>;
-      case 'BUS': return <div className="w-8 h-8 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs font-bold">{legs[0]?.line?.number}</div>;
-      default: return <div className="w-8 h-8 bg-gray-400 text-white rounded-full flex items-center justify-center text-sm"><Clock className="h-4 w-4" /></div>;
-    }
-  };
 
   return (
+    <>
     <Card className="shadow-sm border border-gray-200 dark:border-gray-700 mb-6 bg-white dark:bg-gray-800">
       <CardHeader className="border-b border-gray-200">
         <div className="flex justify-between items-center mb-4">
@@ -166,7 +162,12 @@ export default function CurrentJourney() {
               {leg.kind === 'TRANSIT' ? (
                 <div className="flex items-start space-x-4">
                   <div className="flex flex-col items-center">
-                    {getModeIcon(leg.line.mode)}
+                    <div 
+                      className="w-8 h-8 rounded text-white text-sm font-bold flex items-center justify-center"
+                      style={{ backgroundColor: leg.line.color || '#666666' }}
+                    >
+                      {leg.line.number}
+                    </div>
                     {index < legs.length - 1 && (
                       <div className="w-px bg-gray-300 h-16 mt-2"></div>
                     )}
@@ -245,11 +246,12 @@ export default function CurrentJourney() {
       <div className="p-6 border-t border-gray-200 bg-gray-50 rounded-b-xl">
         <div className="flex space-x-3">
           <Button 
+            onClick={() => setShowAlternatives(!showAlternatives)}
             className="flex-1 bg-blue-600 hover:bg-blue-700"
             data-testid="button-view-alternatives"
           >
             <Route className="mr-2 h-4 w-4" />
-            View Alternatives
+            {showAlternatives ? 'Hide Alternatives' : 'View Alternatives'}
           </Button>
           {delayMinutes >= 20 && (
             <Button 
@@ -272,5 +274,9 @@ export default function CurrentJourney() {
         </div>
       </div>
     </Card>
+    
+    {/* Show Alternative Routes */}
+    {showAlternatives && <AlternativeRoutes />}
+  </>
   );
 }
