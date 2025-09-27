@@ -187,23 +187,31 @@ export class TransitService {
 
     const allTrips: any[] = [];
     
-    // Make multiple API calls to get 20 departure options (6 trips × 4 calls = 24 max)
-    for (let offset = 0; offset < 4; offset++) {
+    // Search strategies for diverse alternatives:
+    // 1. Direct routes only (maxChange=0)
+    // 2. Single transfers (maxChange=1) - current time
+    // 3. Multiple transfers for fastest routes (maxChange=2)
+    // 4. Maximum flexibility for alternative paths (maxChange=3)
+    const searchStrategies = [
+      { maxChange: 0, label: 'Direct routes', timeOffset: 0 },
+      { maxChange: 1, label: 'Single transfer', timeOffset: 0 },
+      { maxChange: 2, label: 'Fast routes', timeOffset: 10 },
+      { maxChange: 3, label: 'Alternative paths', timeOffset: 20 }
+    ];
+
+    for (const strategy of searchStrategies) {
       const searchTime = new Date(dateTime || new Date());
-      if (offset > 0) {
-        // For subsequent calls, add 15 minutes to get more departure options
-        searchTime.setMinutes(searchTime.getMinutes() + (offset * 15));
-      }
+      searchTime.setMinutes(searchTime.getMinutes() + strategy.timeOffset);
 
       const params = new URLSearchParams({
         originId: fromId,
         destId: toId,
         format: 'json',
         accessId: apiKey,
-        numF: '6',  // ResRobot v2.1 maximum (1-6)
+        numF: '4',  // Fewer per call since we're doing diverse searches
         numB: '0',  
         searchForArrival: searchForArrival ? '1' : '0',
-        maxChange: '1'  // Prefer direct routes and single transfers
+        maxChange: strategy.maxChange.toString()
       });
 
       // ResRobot expects time as HH:MM and date as YYYY-MM-DD
@@ -213,25 +221,31 @@ export class TransitService {
       params.append('date', searchTime.toISOString().slice(0, 10));
 
       const url = `${this.RESROBOT_API_BASE}/trip?${params}`;
-      console.log(`ResRobot Trip API (call ${offset + 1}): ${url.replace(apiKey, 'API_KEY_HIDDEN')}`);
+      console.log(`ResRobot ${strategy.label} (${strategy.maxChange} changes): ${url.replace(apiKey, 'API_KEY_HIDDEN')}`);
 
       const response = await fetch(url);
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`ResRobot API call ${offset + 1} failed: ${response.status} - ${errorText}`);
-        continue; // Skip this call and continue with others
+        console.error(`ResRobot ${strategy.label} failed: ${response.status} - ${errorText}`);
+        continue; // Skip this strategy and continue with others
       }
 
       const data = await response.json();
       
       if (data.errorCode) {
-        console.error(`ResRobot API call ${offset + 1} error: ${data.errorCode} - ${data.errorText}`);
+        console.error(`ResRobot ${strategy.label} error: ${data.errorCode} - ${data.errorText}`);
         continue;
       }
 
       if (data.Trip && Array.isArray(data.Trip)) {
-        allTrips.push(...data.Trip);
-        console.log(`ResRobot call ${offset + 1} returned ${data.Trip.length} trips`);
+        // Tag trips with their search strategy for diversity sorting
+        const taggedTrips = data.Trip.map((trip: any) => ({
+          ...trip,
+          _searchStrategy: strategy.label,
+          _maxChanges: strategy.maxChange
+        }));
+        allTrips.push(...taggedTrips);
+        console.log(`ResRobot ${strategy.label} returned ${data.Trip.length} trips`);
       }
     }
 
@@ -241,50 +255,133 @@ export class TransitService {
 
     console.log(`ResRobot returned ${allTrips.length} total real trips from multiple time slots`);
     
-    // Convert trips and remove duplicates based on departure time
-    const trips = allTrips.map((trip: any, index: number) => this.convertResRobotTripToItinerary(trip, index));
+    // Convert trips and create diversity-based alternatives
+    const trips = allTrips.map((trip: any, index: number) => {
+      const itinerary = this.convertResRobotTripToItinerary(trip, index);
+      // Add strategy metadata for sorting
+      itinerary._searchStrategy = trip._searchStrategy;
+      itinerary._maxChanges = trip._maxChanges;
+      return itinerary;
+    });
     
-    // Remove duplicates and sort by departure time
-    const uniqueTrips = trips.filter((trip, index, self) => 
-      index === self.findIndex(t => t.plannedDeparture === trip.plannedDeparture)
-    );
+    // Create diverse alternatives by prioritizing different route characteristics
+    const diverseTrips = this.selectDiverseAlternatives(trips);
     
     if (dateTime) {
       const userTime = dateTime.getTime();
       
       if (searchForArrival) {
         // For arrival time searches, filter out trips that arrive AFTER the specified time
-        const validTrips = uniqueTrips.filter(trip => {
+        const validTrips = diverseTrips.filter(trip => {
           const arrivalTime = new Date(trip.plannedArrival).getTime();
           return arrivalTime <= userTime;
         });
         
-        console.log(`ARRIVAL TIME FILTER: ${validTrips.length}/${uniqueTrips.length} trips arrive by ${dateTime.toTimeString().slice(0,5)}`);
+        console.log(`ARRIVAL TIME FILTER: ${validTrips.length}/${diverseTrips.length} trips arrive by ${dateTime.toTimeString().slice(0,5)}`);
         
-        // Sort by closest to target arrival time (for "arrive by" searches)
-        validTrips.sort((a, b) => {
-          const arrivalA = new Date(a.plannedArrival).getTime();
-          const arrivalB = new Date(b.plannedArrival).getTime();
-          const diffA = Math.abs(arrivalA - userTime);
-          const diffB = Math.abs(arrivalB - userTime);
-          return diffA - diffB; // Closest to target time first
-        });
-        return validTrips.slice(0, 10);
+        return validTrips.slice(0, 8);
       } else {
-        // For departure time searches, sort by proximity to departure time
-        uniqueTrips.sort((a, b) => {
-          // For "depart at", sort by departure time closest to user's time
-          const aDiff = Math.abs(new Date(a.plannedDeparture).getTime() - userTime);
-          const bDiff = Math.abs(new Date(b.plannedDeparture).getTime() - userTime);
-          return aDiff - bDiff;
-        });
-        console.log(`SORTED: ${uniqueTrips.length} unique trips ordered by proximity to departure time`);
-        return uniqueTrips.slice(0, 20);
+        // For departure time searches, return diverse alternatives
+        console.log(`DIVERSE ALTERNATIVES: ${diverseTrips.length} diverse routes found`);
+        return diverseTrips.slice(0, 8);
       }
     }
+
+    console.log(`RETURNING: ${diverseTrips.length} diverse alternatives`);
+    return diverseTrips.slice(0, 8);
+  }
+
+  private selectDiverseAlternatives(trips: Itinerary[]): Itinerary[] {
+    if (trips.length <= 3) return trips;
+
+    console.log(`DIVERSIFYING: Processing ${trips.length} trips for diversity`);
+
+    // Group trips by route signature (origin->transfers->destination pattern)
+    const routeGroups = new Map<string, Itinerary[]>();
     
-    // Return up to 20 trips without time-based filtering
-    return uniqueTrips.slice(0, 20);
+    trips.forEach(trip => {
+      // Create route signature based on transfer pattern
+      const transitLegs = trip.legs.filter(leg => leg.kind === 'TRANSIT') as TransitLeg[];
+      const routeSignature = transitLegs.map(leg => 
+        `${leg.line.number}-${leg.from.name}-${leg.to.name}`
+      ).join('|');
+      
+      if (!routeGroups.has(routeSignature)) {
+        routeGroups.set(routeSignature, []);
+      }
+      routeGroups.get(routeSignature)!.push(trip);
+    });
+
+    console.log(`ROUTE PATTERNS: Found ${routeGroups.size} different route patterns`);
+
+    // Select best trip from each route pattern + add diversity criteria
+    const diverseAlternatives: Itinerary[] = [];
+    const routePatterns = Array.from(routeGroups.entries());
+
+    // 1. Shortest duration route (from any pattern)
+    const shortestTrip = trips.reduce((shortest, current) => {
+      const shortestDuration = new Date(shortest.plannedArrival).getTime() - new Date(shortest.plannedDeparture).getTime();
+      const currentDuration = new Date(current.plannedArrival).getTime() - new Date(current.plannedDeparture).getTime();
+      return currentDuration < shortestDuration ? current : shortest;
+    });
+    diverseAlternatives.push(shortestTrip);
+    console.log(`FASTEST: ${Math.round((new Date(shortestTrip.plannedArrival).getTime() - new Date(shortestTrip.plannedDeparture).getTime()) / 60000)} min`);
+
+    // 2. Direct routes (no transfers) - if available
+    const directRoutes = trips.filter(trip => {
+      const transitLegs = trip.legs.filter(leg => leg.kind === 'TRANSIT');
+      return transitLegs.length === 1;
+    });
+    if (directRoutes.length > 0 && !diverseAlternatives.find(t => t.id === directRoutes[0].id)) {
+      diverseAlternatives.push(directRoutes[0]);
+      console.log(`DIRECT: Found direct route with ${directRoutes[0].legs.length} legs`);
+    }
+
+    // 3. Least transfers route 
+    const leastTransfersTrip = trips.reduce((least, current) => {
+      const leastTransfers = least.legs.filter(leg => leg.kind === 'TRANSIT').length;
+      const currentTransfers = current.legs.filter(leg => leg.kind === 'TRANSIT').length;
+      return currentTransfers < leastTransfers ? current : least;
+    });
+    if (!diverseAlternatives.find(t => t.id === leastTransfersTrip.id)) {
+      diverseAlternatives.push(leastTransfersTrip);
+      console.log(`LEAST TRANSFERS: ${leastTransfersTrip.legs.filter(leg => leg.kind === 'TRANSIT').length} transfers`);
+    }
+
+    // 4. Add one representative from each unique route pattern
+    for (const [routeSignature, groupTrips] of routePatterns) {
+      if (diverseAlternatives.length >= 8) break;
+      
+      // Skip if we already have this pattern
+      const alreadyHas = diverseAlternatives.some(existing => {
+        const existingTransitLegs = existing.legs.filter(leg => leg.kind === 'TRANSIT') as TransitLeg[];
+        const existingSignature = existingTransitLegs.map(leg => 
+          `${leg.line.number}-${leg.from.name}-${leg.to.name}`
+        ).join('|');
+        return existingSignature === routeSignature;
+      });
+
+      if (!alreadyHas) {
+        // Pick the earliest departure from this route pattern
+        const bestFromGroup = groupTrips.reduce((best, current) => {
+          return new Date(current.plannedDeparture) < new Date(best.plannedDeparture) ? current : best;
+        });
+        diverseAlternatives.push(bestFromGroup);
+        console.log(`UNIQUE ROUTE: Added route pattern with ${groupTrips.length} options`);
+      }
+    }
+
+    // 5. Fill remaining slots with different departure times
+    const usedIds = new Set(diverseAlternatives.map(t => t.id));
+    const remainingTrips = trips
+      .filter(trip => !usedIds.has(trip.id))
+      .sort((a, b) => new Date(a.plannedDeparture).getTime() - new Date(b.plannedDeparture).getTime());
+
+    const neededMore = 8 - diverseAlternatives.length;
+    diverseAlternatives.push(...remainingTrips.slice(0, neededMore));
+
+    console.log(`FINAL DIVERSITY: ${diverseAlternatives.length} alternatives selected`);
+    return diverseAlternatives;
   }
 
   private convertResRobotTripToItinerary(resRobotTrip: any, index: number): Itinerary {

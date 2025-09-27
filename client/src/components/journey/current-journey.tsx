@@ -24,8 +24,8 @@ export default function CurrentJourney() {
       
       if (firstLeg.kind === 'TRANSIT' && lastLeg.kind === 'TRANSIT') {
         const searchData = {
-          from: { id: firstLeg.from.siteId, name: firstLeg.from.name },
-          to: { id: lastLeg.to.siteId, name: lastLeg.to.name },
+          from: firstLeg.from.siteId || firstLeg.from.areaId,  // Use siteId or fallback to areaId
+          to: lastLeg.to.siteId || lastLeg.to.areaId,
           date: new Date().toISOString().split('T')[0], // Today
           time: "08:00", // Start from 8 AM for alternatives
           leaveAt: true
