@@ -13,6 +13,39 @@ export default function CurrentJourney() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [showAlternatives, setShowAlternatives] = useState(false);
+  
+  const handleViewAlternatives = async () => {
+    if (!activeJourney || !activeJourney.legs || activeJourney.legs.length === 0) return;
+    
+    try {
+      // Get origin and destination from the first and last leg
+      const firstLeg = activeJourney.legs[0];
+      const lastLeg = activeJourney.legs[activeJourney.legs.length - 1];
+      
+      if (firstLeg.kind === 'TRANSIT' && lastLeg.kind === 'TRANSIT') {
+        const searchData = {
+          from: { id: firstLeg.from.siteId, name: firstLeg.from.name },
+          to: { id: lastLeg.to.siteId, name: lastLeg.to.name },
+          date: new Date().toISOString().split('T')[0], // Today
+          time: "08:00", // Start from 8 AM for alternatives
+          leaveAt: true
+        };
+        
+        // Fetch alternatives and cache them
+        const alternatives = await apiRequest('POST', '/api/trips/search', searchData);
+        queryClient.setQueryData(['trip-results'], alternatives);
+        
+        setShowAlternatives(!showAlternatives);
+      }
+    } catch (error) {
+      console.error('Error fetching alternatives:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load alternative routes. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
 
   const { data: activeJourney, isLoading } = useQuery({
     queryKey: ['/api/journeys/active'],
@@ -246,7 +279,7 @@ export default function CurrentJourney() {
       <div className="p-6 border-t border-gray-200 bg-gray-50 rounded-b-xl">
         <div className="flex space-x-3">
           <Button 
-            onClick={() => setShowAlternatives(!showAlternatives)}
+            onClick={handleViewAlternatives}
             className="flex-1 bg-blue-600 hover:bg-blue-700"
             data-testid="button-view-alternatives"
           >
