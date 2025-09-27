@@ -86,6 +86,24 @@ export default function CurrentJourney() {
     return `${duration} min`;
   };
 
+  const getOriginName = () => {
+    if (legs.length === 0) return 'Origin';
+    const firstLeg = legs[0];
+    if (firstLeg.kind === 'TRANSIT') {
+      return firstLeg.from?.name || 'Origin';
+    }
+    return 'Origin';
+  };
+
+  const getDestinationName = () => {
+    if (legs.length === 0) return 'Destination';
+    const lastLeg = legs[legs.length - 1];
+    if (lastLeg.kind === 'TRANSIT') {
+      return lastLeg.to?.name || 'Destination';
+    }
+    return 'Destination';
+  };
+
   const getModeIcon = (mode: string) => {
     switch (mode) {
       case 'METRO': return <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">T</div>;
@@ -116,17 +134,17 @@ export default function CurrentJourney() {
         {/* Journey Overview */}
         <div className="flex items-center justify-between text-sm mb-4">
           <div className="text-center">
-            <p className="font-semibold">Origin</p>
-            <p className="text-gray-600">{formatTime(plannedDeparture)}</p>
+            <p className="font-semibold text-gray-900 dark:text-white">{getOriginName()}</p>
+            <p className="text-gray-600 dark:text-gray-400">{formatTime(plannedDeparture)}</p>
           </div>
           <div className="flex-1 mx-4 border-t-2 border-dashed border-gray-300 relative">
-            <span className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white px-2 text-xs text-gray-500">
+            <span className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 px-2 text-xs text-gray-500">
               {getTotalDuration()}
             </span>
           </div>
           <div className="text-center">
-            <p className="font-semibold">Destination</p>
-            <p className="text-gray-600">{formatTime(expectedArrival)}</p>
+            <p className="font-semibold text-gray-900 dark:text-white">{getDestinationName()}</p>
+            <p className="text-gray-600 dark:text-gray-400">{formatTime(expectedArrival)}</p>
           </div>
         </div>
       </CardHeader>
