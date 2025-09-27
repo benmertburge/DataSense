@@ -73,9 +73,18 @@ export default function CurrentJourney() {
 
   const legs = activeJourney.legs || [];
   const delayMinutes = activeJourney.delayMinutes || 0;
-  const plannedDeparture = new Date(activeJourney.plannedDeparture);
-  const plannedArrival = new Date(activeJourney.plannedArrival);
-  const expectedArrival = activeJourney.expectedArrival ? new Date(activeJourney.expectedArrival) : plannedArrival;
+  
+  // Parse times without timezone conversion since ResRobot already returns Swedish local time
+  const parseSwedishTime = (timeString: string) => {
+    if (!timeString) return new Date();
+    // Remove timezone info and parse as local time
+    const cleanTimeString = timeString.replace(/[TZ]/g, ' ').trim();
+    return new Date(cleanTimeString);
+  };
+
+  const plannedDeparture = parseSwedishTime(activeJourney.plannedDeparture);
+  const plannedArrival = parseSwedishTime(activeJourney.plannedArrival);
+  const expectedArrival = activeJourney.expectedArrival ? parseSwedishTime(activeJourney.expectedArrival) : plannedArrival;
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
@@ -185,19 +194,19 @@ export default function CurrentJourney() {
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-medium">
-                          {new Date(leg.plannedDeparture).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })} - 
-                          {new Date(leg.plannedArrival).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}
+                          {formatTime(parseSwedishTime(leg.plannedDeparture))} - 
+                          {formatTime(parseSwedishTime(leg.plannedArrival))}
                         </p>
-                        {leg.expectedDeparture && new Date(leg.expectedDeparture) > new Date(leg.plannedDeparture) && (
+                        {leg.expectedDeparture && parseSwedishTime(leg.expectedDeparture) > parseSwedishTime(leg.plannedDeparture) && (
                           <p className="text-xs text-amber-600">
-                            +{Math.round((new Date(leg.expectedDeparture).getTime() - new Date(leg.plannedDeparture).getTime()) / 60000)} min delay
+                            +{Math.round((parseSwedishTime(leg.expectedDeparture).getTime() - parseSwedishTime(leg.plannedDeparture).getTime()) / 60000)} min delay
                           </p>
                         )}
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
                       <Badge variant="secondary" className="text-xs">
-                        {Math.round((new Date(leg.plannedArrival).getTime() - new Date(leg.plannedDeparture).getTime()) / 60000)} min
+                        {Math.round((parseSwedishTime(leg.plannedArrival).getTime() - parseSwedishTime(leg.plannedDeparture).getTime()) / 60000)} min
                       </Badge>
                       {leg.platformChange && (
                         <Badge variant="destructive" className="bg-amber-500 text-xs">
