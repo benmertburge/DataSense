@@ -33,7 +33,7 @@ import {
   type InsertServiceAlert,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, gte, lte, sql } from "drizzle-orm";
+import { eq, and, or, desc, gte, lte, sql } from "drizzle-orm";
 
 export interface IStorage {
   // User operations (required for Replit Auth)
@@ -322,7 +322,10 @@ export class DatabaseStorage implements IStorage {
     const [journey] = await db.select().from(journeys)
       .where(and(
         eq(journeys.userId, userId),
-        eq(journeys.status, "active")
+        or(
+          eq(journeys.status, "planned"),
+          eq(journeys.status, "active")
+        )
       ))
       .orderBy(desc(journeys.createdAt))
       .limit(1);
