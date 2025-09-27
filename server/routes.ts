@@ -244,7 +244,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const journeyId = req.params.id;
       
       // Verify journey belongs to user
-      const existingJourney = await storage.getJourneyById(journeyId);
+      const existingJourney = await storage.getJourney(journeyId);
       if (!existingJourney || existingJourney.userId !== userId) {
         return res.status(404).json({ message: "Journey not found" });
       }
