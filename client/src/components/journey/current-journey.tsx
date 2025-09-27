@@ -107,7 +107,7 @@ export default function CurrentJourney() {
   const getModeIcon = (mode: string) => {
     switch (mode) {
       case 'METRO': return <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">T</div>;
-      case 'TRAIN': return <div className="w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center text-xs font-bold">AE</div>;
+      case 'TRAIN': return <div className="w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center text-xs font-bold">🚆</div>;
       case 'BUS': return <div className="w-8 h-8 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs font-bold">{legs[0]?.line?.number}</div>;
       default: return <div className="w-8 h-8 bg-gray-400 text-white rounded-full flex items-center justify-center text-sm"><Clock className="h-4 w-4" /></div>;
     }
