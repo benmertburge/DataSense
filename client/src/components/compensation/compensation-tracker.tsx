@@ -11,6 +11,8 @@ import CompensationModal from './compensation-modal';
 export default function CompensationTracker() {
   const { user } = useAuth();
   const [showModal, setShowModal] = useState(false);
+  const [pushNotifications, setPushNotifications] = useState(true);
+  const [delayAlerts, setDelayAlerts] = useState(true);
 
   const { data: compensationCases, isLoading } = useQuery({
     queryKey: ['/api/compensation/cases'],
@@ -178,16 +180,36 @@ export default function CompensationTracker() {
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium text-gray-900 dark:text-white">Push Notifications</span>
-              <div className="relative inline-flex h-6 w-11 items-center rounded-full bg-blue-600">
-                <span className="inline-block h-4 w-4 transform rounded-full bg-white translate-x-6 transition"></span>
-              </div>
+              <button
+                data-testid="toggle-push-notifications"
+                onClick={() => setPushNotifications(!pushNotifications)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                  pushNotifications ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    pushNotifications ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
             </div>
 
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium text-gray-900 dark:text-white">Delay Alerts</span>
-              <div className="relative inline-flex h-6 w-11 items-center rounded-full bg-blue-600">
-                <span className="inline-block h-4 w-4 transform rounded-full bg-white translate-x-6 transition"></span>
-              </div>
+              <button
+                data-testid="toggle-delay-alerts"
+                onClick={() => setDelayAlerts(!delayAlerts)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                  delayAlerts ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    delayAlerts ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
             </div>
 
             <div>
