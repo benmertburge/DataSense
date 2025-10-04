@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { DollarSign, Plus, FileText, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,8 +11,26 @@ import CompensationModal from './compensation-modal';
 export default function CompensationTracker() {
   const { user } = useAuth();
   const [showModal, setShowModal] = useState(false);
-  const [pushNotifications, setPushNotifications] = useState(true);
-  const [delayAlerts, setDelayAlerts] = useState(true);
+  
+  // Load initial state from localStorage or default to true
+  const [pushNotifications, setPushNotifications] = useState(() => {
+    const saved = localStorage.getItem('pushNotifications');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
+  
+  const [delayAlerts, setDelayAlerts] = useState(() => {
+    const saved = localStorage.getItem('delayAlerts');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
+
+  // Save to localStorage whenever settings change
+  useEffect(() => {
+    localStorage.setItem('pushNotifications', JSON.stringify(pushNotifications));
+  }, [pushNotifications]);
+
+  useEffect(() => {
+    localStorage.setItem('delayAlerts', JSON.stringify(delayAlerts));
+  }, [delayAlerts]);
 
   const { data: compensationCases, isLoading } = useQuery({
     queryKey: ['/api/compensation/cases'],
